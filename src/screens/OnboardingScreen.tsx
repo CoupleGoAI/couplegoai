@@ -90,7 +90,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
               </span>
               <h1 className="font-serif text-3xl font-bold leading-tight">
                 Your relationship's{' '}
-                <span className="bg-clip-text text-transparent gradient-primary">secret superpower</span>
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, hsl(330, 76%, 65%), hsl(270, 60%, 65%))' }}>secret superpower</span>
               </h1>
               <p className="text-muted-foreground text-base leading-relaxed max-w-xs">
                 A personal AI for both of you. Grow closer, resolve conflicts, and have fun together.
