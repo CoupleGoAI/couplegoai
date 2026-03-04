@@ -18,7 +18,7 @@ import { fontFamilies, fontSize, fontWeight, textStyles } from '../../theme/typo
 export default function ConnectionConfirmedScreen({ navigation }: ConnectionConfirmedScreenProps) {
   const currentUser = useAppStore((s) => s.currentUser);
   const partner = useAppStore((s) => s.partner);
-  const setOnboarded = useAppStore((s) => s.setOnboarded);
+  const setOnboardingCompleted = useAppStore((s) => s.setOnboardingCompleted);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -39,7 +39,7 @@ export default function ConnectionConfirmedScreen({ navigation }: ConnectionConf
   }, []);
 
   return (
-    <LinearGradient colors={gradients.ctaPanel as any} style={styles.container}>
+    <LinearGradient colors={gradients.ctaPanel} style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Animated.View
           style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}
@@ -83,7 +83,7 @@ export default function ConnectionConfirmedScreen({ navigation }: ConnectionConf
 
         <GradientButton
           label="Enter the app →"
-          onPress={() => setOnboarded(true)}
+          onPress={() => setOnboardingCompleted(true)}
           size="lg"
           fullWidth
           style={styles.enterBtn}

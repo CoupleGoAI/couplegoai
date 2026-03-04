@@ -18,7 +18,7 @@ export default function Badge({ label, variant = 'neutral', gradient = false, st
   if (gradient) {
     return (
       <LinearGradient
-        colors={gradients.brand as any}
+        colors={gradients.brand}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.base, style]}

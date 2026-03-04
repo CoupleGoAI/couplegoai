@@ -7,6 +7,9 @@
  *
  * Keep this file in sync with tokens.ts — it is the bridge between
  * the design system and NativeWind className usage.
+ *
+ * NOTE: Requires `nativewind` and `tailwindcss` as dependencies.
+ * Install before using: npx expo install nativewind tailwindcss
  */
 
 /** @type {import('tailwindcss').Config} */
@@ -31,6 +34,7 @@ module.exports = {
         success: '#22c55e',
         warning: '#f59e0b',
         error: '#ef4444',
+        errorBg: 'rgba(239, 68, 68, 0.08)',
         info: '#3b82f6',
       },
       borderRadius: {

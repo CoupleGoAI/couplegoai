@@ -75,7 +75,7 @@ export default function Avatar({
     return (
       <View style={[styles.wrapper, style]}>
         <LinearGradient
-          colors={gradients.brand as any}
+          colors={gradients.brand}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.fallback, containerStyle]}

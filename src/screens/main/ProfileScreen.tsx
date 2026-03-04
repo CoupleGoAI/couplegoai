@@ -16,6 +16,7 @@ import Avatar from '../../components/ui/Avatar';
 import Card from '../../components/ui/Card';
 import Divider from '../../components/ui/Divider';
 import { useAppStore } from '../../store/appStore';
+import { useAuth } from '../../hooks/useAuth';
 import { palette, gradients, light } from '../../theme/colors';
 import { radii, spacing, shadows, layout } from '../../theme/spacing';
 import { fontFamilies, fontSize, fontWeight, textStyles } from '../../theme/typography';
@@ -68,7 +69,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const couple = useAppStore((s) => s.couple);
   const colorScheme = useAppStore((s) => s.colorScheme);
   const setColorScheme = useAppStore((s) => s.setColorScheme);
-  const reset = useAppStore((s) => s.reset);
+  const { signOut } = useAuth();
 
   const handleLogout = () => {
     Alert.alert(
@@ -79,7 +80,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         {
           text: 'Log Out',
           style: 'destructive',
-          onPress: () => reset(),
+          onPress: () => { void signOut(); },
         },
       ]
     );
@@ -93,7 +94,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       >
         {/* ── Header ── */}
         <LinearGradient
-          colors={gradients.heroWash as any}
+          colors={gradients.heroWash}
           style={styles.profileHeader}
         >
           {/* Couple avatars */}

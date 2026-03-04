@@ -1,6 +1,6 @@
 import { useColorScheme } from 'react-native';
 import { useAppStore } from '../store/appStore';
-import { light, dark, gradients, palette } from '../theme/colors';
+import { light, gradients, palette } from '../theme/colors';
 import { textStyles, fontSize, fontWeight, fontFamilies } from '../theme/typography';
 import { spacing, radii, shadows, layout } from '../theme/spacing';
 
@@ -8,7 +8,8 @@ export function useTheme() {
   const systemScheme = useColorScheme();
   const storeScheme = useAppStore((s) => s.colorScheme);
   const scheme = storeScheme ?? systemScheme ?? 'light';
-  const colors = scheme === 'dark' ? dark : light;
+  // TODO: Add dark theme support when tokens.ts has dark mode values
+  const colors = light;
 
   return {
     colors,

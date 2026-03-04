@@ -62,7 +62,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         {partner && (
           <Animated.View style={{ opacity: fadeAnim }}>
             <LinearGradient
-              colors={gradients.brand as any}
+              colors={gradients.brand}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.partnerCard}

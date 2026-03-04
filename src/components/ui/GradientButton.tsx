@@ -56,7 +56,7 @@ export default function GradientButton({
         ]}
       >
         <LinearGradient
-          colors={isDisabled ? [palette.gray300, palette.gray400] : gradients.brand as any}
+          colors={isDisabled ? [palette.gray300, palette.gray400] : gradients.brand}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[styles.gradient, sizeStyles.container, isDisabled && styles.disabled]}

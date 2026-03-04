@@ -34,7 +34,7 @@ const CATEGORIES: Array<{ id: TodCategory; emoji: string; description: string }>
 function CategoryPicker({ onSelect }: { onSelect: (cat: TodCategory) => void }) {
   return (
     <SafeAreaView style={styles.pickerSafe} edges={['top', 'bottom']}>
-      <LinearGradient colors={gradients.heroWash as any} style={styles.pickerContainer}>
+      <LinearGradient colors={gradients.heroWash} style={styles.pickerContainer}>
         <View style={styles.pickerHeader}>
           <Text style={styles.pickerEmoji}>🎲</Text>
           <Text style={styles.pickerTitle}>Truth or Dare</Text>
@@ -196,7 +196,7 @@ function GameCard({
           {/* Card */}
           <TouchableOpacity onPress={flipCard} activeOpacity={0.9} style={styles.cardFlipWrap}>
             <Animated.View style={[styles.cardFront, { transform: [{ rotateY: frontRotate }] }]}>
-              <LinearGradient colors={gradients.ctaPanel as any} style={styles.flipCardFront}>
+              <LinearGradient colors={gradients.ctaPanel} style={styles.flipCardFront}>
                 <Text style={styles.flipHint}>Tap to reveal</Text>
                 <Text style={styles.flipEmoji}>{type === 'truth' ? '💭' : '⚡'}</Text>
               </LinearGradient>

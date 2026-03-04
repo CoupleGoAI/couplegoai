@@ -31,7 +31,7 @@ export default function WelcomeScreen({ navigation }: WelcomeScreenProps) {
 
   return (
     <LinearGradient
-      colors={gradients.heroWash as any}
+      colors={gradients.heroWash}
       start={{ x: 0.3, y: 0 }}
       end={{ x: 0.7, y: 1 }}
       style={styles.container}
@@ -48,7 +48,7 @@ export default function WelcomeScreen({ navigation }: WelcomeScreenProps) {
 
           <Text style={styles.headline}>Your relationship's</Text>
           <LinearGradient
-            colors={gradients.brand as any}
+            colors={gradients.brand}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.gradientTextWrap}

@@ -50,7 +50,7 @@ function MessageBubble({ message, onLongPress, myName, partnerName }: BubbleProp
     return (
       <Animated.View style={[styles.aiRow, { transform: [{ scale: scaleAnim }] }]}>
         <View style={styles.aiAvatarWrap}>
-          <LinearGradient colors={gradients.brand as any} style={styles.aiAvatar}>
+          <LinearGradient colors={gradients.brand} style={styles.aiAvatar}>
             <Text style={styles.aiAvatarEmoji}>✨</Text>
           </LinearGradient>
         </View>
@@ -85,7 +85,7 @@ function MessageBubble({ message, onLongPress, myName, partnerName }: BubbleProp
         >
           {isUser ? (
             <LinearGradient
-              colors={gradients.brand as any}
+              colors={gradients.brand}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.bubble, styles.userBubble]}
@@ -226,7 +226,7 @@ export default function ChatScreen({ navigation }: ChatScreenProps) {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.headerInfo}>
-          <LinearGradient colors={gradients.brand as any} style={styles.aiBadge}>
+          <LinearGradient colors={gradients.brand} style={styles.aiBadge}>
             <Text style={{ fontSize: 18 }}>✨</Text>
           </LinearGradient>
           <View>

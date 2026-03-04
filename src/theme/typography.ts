@@ -57,8 +57,11 @@ export const fontWeight = {
   extrabold: '800' as const,
 } as const;
 
-// ─── Letter Spacing (from tokens.ts) ─────────────────────────────────────────
-export const letterSpacing = typographyTokens.letterSpacing;
+// ─── Letter Spacing (from tokens.ts + extras) ───────────────────────────────
+export const letterSpacing = {
+  ...typographyTokens.letterSpacing,
+  widest: 2,
+} as const;
 
 // ─── Composed Text Styles ─────────────────────────────────────────────────────
 export const textStyles = {

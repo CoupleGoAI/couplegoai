@@ -1,15 +1,15 @@
 import { create } from 'zustand';
-import type { User, Partner, Couple } from '../types';
+import type { User, Partner, Couple } from '@/types';
 
 interface AppStore {
-  isOnboarded: boolean;
+  onboardingCompleted: boolean;
   currentUser: User | null;
   partner: Partner | null;
   couple: Couple | null;
   colorScheme: 'light' | 'dark';
 
   // Actions
-  setOnboarded: (value: boolean) => void;
+  setOnboardingCompleted: (value: boolean) => void;
   setCurrentUser: (user: User | null) => void;
   setPartner: (partner: Partner | null) => void;
   setCouple: (couple: Couple | null) => void;
@@ -18,7 +18,7 @@ interface AppStore {
 }
 
 const initialState = {
-  isOnboarded: false,
+  onboardingCompleted: false,
   currentUser: null,
   partner: null,
   couple: null,
@@ -28,7 +28,7 @@ const initialState = {
 export const useAppStore = create<AppStore>((set) => ({
   ...initialState,
 
-  setOnboarded: (value) => set({ isOnboarded: value }),
+  setOnboardingCompleted: (value) => set({ onboardingCompleted: value }),
   setCurrentUser: (user) => set({ currentUser: user }),
   setPartner: (partner) => set({ partner }),
   setCouple: (couple) => set({ couple }),

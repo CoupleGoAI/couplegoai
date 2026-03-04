@@ -39,7 +39,7 @@ export default function GenerateQRScreen({ navigation }: GenerateQRScreenProps) 
   };
 
   return (
-    <LinearGradient colors={gradients.heroWash as any} style={styles.container}>
+    <LinearGradient colors={gradients.heroWash} style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {/* Back */}
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>

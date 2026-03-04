@@ -38,7 +38,7 @@ export default function CreateAccountScreen({ navigation }: CreateAccountScreenP
   };
 
   return (
-    <LinearGradient colors={gradients.heroWash as any} style={styles.container}>
+    <LinearGradient colors={gradients.heroWash} style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
