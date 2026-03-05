@@ -104,6 +104,11 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
 
   const keyExtractor = useCallback((item: OnboardingMessage) => item.id, []);
 
+  const handleRetry = useCallback(() => {
+    if (isLoading) return;
+    void sendMessage('');
+  }, [isLoading, sendMessage]);
+
   // ── Loading splash while initializing ─────────────────────────────────────
   if (isInitializing) {
     return (
@@ -165,9 +170,9 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
               <Text style={styles.headerTitle}>CoupleGoAI</Text>
             </View>
             <View style={styles.progressSection}
-            accessibilityLabel={`Question ${currentQuestion} of ${totalQuestions}`}
-            accessibilityRole="progressbar"
-          >
+              accessibilityLabel={`Question ${currentQuestion} of ${totalQuestions}`}
+              accessibilityRole="progressbar"
+            >
               <ProgressDots current={currentQuestion} total={totalQuestions} />
               <Text style={styles.progressLabel}>
                 {currentQuestion} of {totalQuestions}
@@ -186,7 +191,24 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
             ListEmptyComponent={
               isLoading ? null : (
                 <View style={styles.emptyState}>
-                  <ActivityIndicator color={colors.primary} />
+                  <Text style={styles.emptyTitle}>
+                    {error ? 'Connection issue' : 'Start your story'}
+                  </Text>
+                  <Text style={styles.emptySubtitle}>
+                    {error
+                      ? 'We could not reach the server. Check your connection and try again.'
+                      : 'Answer a few quick questions to personalize your CoupleGoAI experience.'}
+                  </Text>
+                  {error && (
+                    <GradientButton
+                      label="Try again"
+                      onPress={handleRetry}
+                      size="sm"
+                      loading={isLoading}
+                      disabled={isLoading}
+                      style={styles.emptyCta}
+                    />
+                  )}
                 </View>
               )
             }
@@ -316,6 +338,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: spacing['2xl'],
+    paddingHorizontal: layout.screenPaddingH,
+    gap: spacing.md,
+  },
+  emptyTitle: {
+    ...textStyles.bodyMd,
+    color: colors.foreground,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    ...textStyles.bodySm,
+    color: colors.gray,
+    textAlign: 'center',
+  },
+  emptyCta: {
+    marginTop: spacing.sm,
   },
 
   // ── Error ──────────────────────────────────────────────────────────────────
