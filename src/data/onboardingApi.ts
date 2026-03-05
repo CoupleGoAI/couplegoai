@@ -1,4 +1,4 @@
-import { apiFetch } from '@data/apiClient';
+import { invokeEdgeFunction } from '@data/apiClient';
 import { supabase } from '@data/supabase';
 
 // ─── Response Shapes ─────────────────────────────────────────────────────────
@@ -25,27 +25,75 @@ type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
-/** GET /onboarding/status — check whether this user has completed onboarding. */
+/**
+ * Check whether the current user has completed onboarding.
+ * Reads directly from Supabase — no edge function needed for simple status.
+ *
+ * - `completed` is read from the `profiles.onboarding_completed` column.
+ * - `currentQuestion` is derived from the count of user messages in the
+ *   `messages` table with `conversation_type = 'onboarding'`.
+ */
 export async function getOnboardingStatus(): Promise<ApiResult<OnboardingStatusResponse>> {
-  return apiFetch<OnboardingStatusResponse>('/onboarding/status');
+  try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return { ok: false, error: 'Session unavailable. Please sign in again.' };
+    }
+
+    const userId = userData.user.id;
+
+    // Fetch profile to check completion status
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      return { ok: false, error: 'Failed to load onboarding status.' };
+    }
+
+    const completed = (profile?.onboarding_completed as boolean) ?? false;
+
+    if (completed) {
+      return { ok: true, data: { completed: true, currentQuestion: 0 } };
+    }
+
+    // Count user messages to determine current question index
+    const { count, error: countError } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('conversation_type', 'onboarding')
+      .eq('role', 'user');
+
+    if (countError) {
+      return { ok: false, error: 'Failed to load onboarding status.' };
+    }
+
+    return { ok: true, data: { completed: false, currentQuestion: count ?? 0 } };
+  } catch {
+    return { ok: false, error: 'Failed to load onboarding status.' };
+  }
 }
 
 /**
- * POST /onboarding/message — send the user's message to the AI.
+ * Send the user's message to the AI onboarding conversation.
  * An empty string triggers the initial greeting from the AI.
+ *
+ * Uses the `onboarding-chat` Supabase Edge Function which handles
+ * AI processing, question validation, and message persistence.
  */
 export async function sendOnboardingMessage(
   message: string,
 ): Promise<ApiResult<OnboardingMessageResponse>> {
-  return apiFetch<OnboardingMessageResponse>('/onboarding/message', {
-    method: 'POST',
-    body: JSON.stringify({ message }),
-  });
+  return invokeEdgeFunction<OnboardingMessageResponse>('onboarding-chat', { message });
 }
 
 /**
  * Fetch conversation history from `public.messages` for a given user.
  * Used to resume mid-onboarding sessions.
+ * Reads directly from Supabase — no edge function needed.
  * Input: validated userId (never derived from untrusted sources).
  */
 export async function fetchOnboardingHistory(
