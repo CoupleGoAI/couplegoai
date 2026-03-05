@@ -3,7 +3,7 @@
 ## Scope
 
 The onboarding chat screen and its data pipeline:
-- `OnboardingChatScreen` → `useOnboarding` hook → `onboardingApi` → REST API + Supabase
+- `OnboardingChatScreen` → `useOnboarding` hook → `onboardingApi` → Supabase Edge Functions + Supabase PostgREST
 
 ---
 
@@ -34,13 +34,13 @@ The onboarding chat screen and its data pipeline:
 **Risk**: Auth Bearer token logged, included in error messages, or sent to wrong endpoint.
 
 **MUST NOT**: Log `Authorization` header or `access_token` value anywhere.
-**MUST**: Token is only read inside `apiFetch` and never stored as a local variable outside that function scope.
-**MUST**: Error messages returned by `apiFetch` are generic strings — no token fragments, internal IDs, or stack traces.
-**MUST**: `API_BASE_URL` is explicitly set to a trusted domain; no dynamic URL construction with user input.
+**MUST**: Token is managed internally by `supabase-js` and only attached to requests automatically — never manually constructed or stored in local variables.
+**MUST**: Error messages returned by `invokeEdgeFunction` are generic strings — no token fragments, internal IDs, or stack traces.
+**MUST**: All requests go through the Supabase client which routes to the project's own Supabase URL; no dynamic URL construction with user input.
 
 ### T3 — Malicious API response
 
-**Risk**: Backend returns a malformed or adversarial response shape that corrupts Zustand state (e.g., `NaN` in `currentQuestion`, XSS in `reply`).
+**Risk**: Supabase Edge Function returns a malformed or adversarial response shape that corrupts Zustand state (e.g., `NaN` in `currentQuestion`, XSS in `reply`).
 
 **MUST**: Runtime shape guard in `useOnboarding.sendMessage` verifies `reply: string`, `questionIndex: number`, `isComplete: boolean` before writing to store.
 **MUST NOT**: Use `as T` casts for fields that drive navigation decisions (`isComplete`) without validation.
