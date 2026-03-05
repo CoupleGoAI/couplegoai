@@ -18,21 +18,22 @@ This is NOT a form — it's a chat interface. The AI sends a message, user repli
 2. User responds → AI validates (non-empty, looks like a name) → asks age range
 3. User responds → AI validates (reasonable range like "20s", "25", "18-24") → asks personality Q1
 4. Continue until all questions answered
-5. On final answer → POST to backend → `onboarding_completed = true` → navigate forward
+5. On final answer → edge function sets `onboarding_completed = true` → navigate forward
 
-### API endpoints
+### Data access (Supabase-native — no REST endpoints)
 
-| Method | Path                  | Body          | Response                               | Auth |
-| ------ | --------------------- | ------------- | -------------------------------------- | ---- |
-| POST   | `/onboarding/message` | `{ message }` | `{ reply, questionIndex, isComplete }` | Yes  |
-| GET    | `/onboarding/status`  | —             | `{ completed, currentQuestion }`       | Yes  |
+| Operation          | Method                                        | Notes                                                 |
+| ------------------ | --------------------------------------------- | ----------------------------------------------------- |
+| Check status       | Direct DB query on `profiles` + `messages`    | Read `onboarding_completed` from profiles; count user messages to derive current question index |
+| Send message to AI | Edge function: `onboarding-chat`              | Handles AI processing, question validation, message persistence. Input: `{ message }`. Output: `{ reply, questionIndex, isComplete }` |
+| Fetch history      | Direct DB query on `messages`                 | `conversation_type = 'onboarding'`, ordered by `created_at`. Used to resume mid-onboarding sessions |
 
-The backend manages the AI conversation and question state. Client just sends user messages and renders AI replies.
+The `onboarding-chat` edge function manages the AI conversation and question state. Client just sends user messages and renders AI replies.
 
 ### State
 
-- `onboardingStore` (new Zustand slice): `messages[]`, `isComplete`, `currentQuestion`, `isLoading`
-- On completion, update user profile in `appStore`
+- `onboardingStore` (Zustand slice): `messages[]`, `isComplete`, `currentQuestion`, `isLoading`
+- On completion, update user profile in `authStore`
 
 ## Done when
 
@@ -49,4 +50,4 @@ The backend manages the AI conversation and question state. Client just sends us
 - Progress indicator (subtle, e.g. "2 of 5" or small dots) so user knows how far along
 - Personality questions should feel casual: "Are you more of a planner or spontaneous type?" not "Rate your openness 1-10"
 - Keep the AI tone warm, playful, Gen Z — match the brand
-- The onboarding questions and validation logic live on the backend (AI service) — client is a thin chat shell
+- The onboarding questions and validation logic live on the backend (edge function) — client is a thin chat shell

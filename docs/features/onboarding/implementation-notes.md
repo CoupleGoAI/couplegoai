@@ -8,8 +8,8 @@ Implements the full AI onboarding chat feature for CoupleGoAI. After first login
 
 ### New
 
-- `src/data/config.ts` — `API_BASE_URL` constant read from `EXPO_PUBLIC_API_BASE_URL` env var with production fallback
-- `src/data/onboardingApi.ts` — Three data-layer functions: `getOnboardingStatus`, `sendOnboardingMessage`, `fetchOnboardingHistory`. All return discriminated `Result<T, string>`. History items sanitize the `role` field (only trust `user|assistant`).
+- `src/data/config.ts` — (Deleted) `API_BASE_URL` is no longer needed; the Supabase client handles edge function URL routing automatically via `supabase.functions.invoke()`.
+- `src/data/onboardingApi.ts` — Three data-layer functions: `getOnboardingStatus` (direct Supabase DB query on profiles + messages), `sendOnboardingMessage` (invokes `onboarding-chat` edge function via `supabase.functions.invoke()`), `fetchOnboardingHistory` (direct Supabase DB query). All return discriminated `Result<T, string>`. History items sanitize the `role` field (only trust `user|assistant`).
 - `src/store/onboardingStore.ts` — Zustand slice: `messages`, `isComplete`, `currentQuestion`, `isLoading`, `error`, plus `reset()` action. Adds `createdAt: number` to `OnboardingMessage` for timestamp display (minor extension beyond spec type — see Plan Deviation below).
 - `src/hooks/useOnboarding.ts` — Orchestration hook. On mount: fetches status, optionally restores history. `sendMessage('')` triggers first AI greeting. On completion: refreshes auth profile → RootNavigator transitions reactively. Returns `{ messages, isComplete, currentQuestion, totalQuestions, isLoading, error, sendMessage, isInitializing }`.
 - `src/components/chat/ChatBubble.tsx` — Shared message bubble component. User: right-aligned, `gradients.brand` LinearGradient. AI: left-aligned, `colors.muted` background with `colors.borderDefault` border. `React.memo` applied.
@@ -22,7 +22,7 @@ Implements the full AI onboarding chat feature for CoupleGoAI. After first login
 
 ### Modified
 
-- `src/data/apiClient.ts` — Added `apiFetch<T>`: authenticated fetch to the CoupleGoAI REST API with 10s `AbortController` timeout, Bearer token injection (never logged), typed `Result<T, string>` return, HTTP error mapping. Import of `API_BASE_URL` from `config.ts`.
+- `src/data/apiClient.ts` — Contains `invokeEdgeFunction<T>`: typed wrapper around `supabase.functions.invoke()` with generic error mapping. Also contains `supabaseQuery<T>` for typed PostgREST queries. Bearer token is managed internally by `supabase-js` — never logged or manually constructed.
 - `src/navigation/types.ts` — Added `Onboarding: undefined` to `RootStackParamList`. Added `OnboardingScreenProps` type.
 - `src/navigation/RootNavigator.tsx` — Added conditional route: `!onboardingCompleted` → `OnboardingChatScreen` with `gestureEnabled: false`. Named import of `OnboardingChatScreen`.
 - `src/components/ui/Divider.tsx` — `import type { ViewStyle }` (lint compliance)
@@ -40,14 +40,14 @@ Implements the full AI onboarding chat feature for CoupleGoAI. After first login
 
 ## Security requirements satisfied
 
-- **Token never logged**: `apiFetch` builds the `Authorization` header inline with no debug output. The Bearer token is attached in a local scope and never passed to any logging facility.
+- **Token never logged**: `invokeEdgeFunction` delegates token management entirely to `supabase-js`. The Bearer token is attached internally and never appears in debug output or local variables. No manual `Authorization` header construction.
 - **No PII in logs**: `console.log` is linted as a warning, `console.error/warn` only. Neither the token nor user messages are logged.
 - **External input validated**: `fetchOnboardingHistory` filters DB rows with a type-guard and narrows `role` to `'user' | 'assistant'` before trusting it. `sendOnboardingMessage` input goes through `sanitizeMessage` via the domain layer.
-- **Session gating**: `apiFetch` calls `supabase.auth.getSession()` before every request; returns a generic error if the session is missing or expired — no internal token details exposed.
-- **Timeout enforced**: `AbortController` with 10 s timeout on all REST calls prevents indefinite hangs.
+- **Session gating**: `getOnboardingStatus` calls `supabase.auth.getUser()` before querying; returns a generic error if the session is missing or expired — no internal token details exposed.
+- **No third-party API**: All data access goes through Supabase PostgREST (for direct DB queries) or `supabase.functions.invoke()` (for edge functions). No external REST API URLs.
 - **No skip / back**: `gestureEnabled: false` on the Onboarding stack screen. No back button in `OnboardingChatScreen` header.
-- **Secrets in secure store**: Auth tokens stay in Supabase's `expo-secure-store` adapter — `apiFetch` reads them via `getSession()`, never from AsyncStorage.
-- **Generic error messages**: HTTP 4xx/5xx errors surface generic strings (e.g., "Session expired. Please sign in again.") — no stack traces or internal IDs.
+- **Secrets in secure store**: Auth tokens stay in Supabase's `expo-secure-store` adapter — never in AsyncStorage.
+- **Generic error messages**: Edge function errors surface generic strings (e.g., "Request failed. Please try again.") — no stack traces or internal IDs.
 - **Input length cap**: `MAX_MESSAGE_LENGTH = 500` enforced in `sanitizeMessage` and `isValidUserMessage`; `TextInput maxLength={500}` enforces it at the UI layer.
 
 ## How to test

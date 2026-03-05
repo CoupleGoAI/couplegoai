@@ -1,10 +1,7 @@
 import { supabase } from '@data/supabase';
-import { API_BASE_URL } from '@data/config';
-
-const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
- * Typed wrapper for Supabase PostgREST + Edge Function calls.
+ * Typed wrapper for Supabase PostgREST queries.
  * Supabase JS automatically attaches the session's access token
  * to all requests — no manual header management needed.
  */
@@ -22,58 +19,40 @@ export async function supabaseQuery<T>(
 }
 
 /**
- * Authenticated fetch to the CoupleGoAI REST API.
+ * Typed wrapper for Supabase Edge Function invocations.
  *
- * - Attaches Bearer token from the current Supabase session.
- * - Enforces a 10-second timeout via AbortController.
+ * - Uses `supabase.functions.invoke()` which automatically attaches the
+ *   session's Bearer token and routes to the correct Supabase project URL.
  * - Returns a discriminated Result<T, string> — never throws.
- * - SECURITY: tokens are never logged; only generic error messages surface.
+ * - SECURITY: tokens are managed internally by supabase-js; never logged.
+ *   Only generic error messages surface to the caller.
  */
-export async function apiFetch<T>(
-  path: string,
-  init: RequestInit & { headers?: Record<string, string> } = {},
+export async function invokeEdgeFunction<T>(
+  functionName: string,
+  body?: Record<string, unknown>,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError || !sessionData.session) {
-      clearTimeout(timeoutId);
-      return { ok: false, error: 'Session unavailable. Please sign in again.' };
-    }
-
-    // Token attached here — intentionally not logged anywhere
-    const authHeader = `Bearer ${sessionData.session.access_token}`;
-    const url = `${API_BASE_URL}${path}`;
-
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authHeader,
-        ...init.headers,
-      },
+    const { data, error } = await supabase.functions.invoke(functionName, {
+      body: body ?? {},
     });
 
-    clearTimeout(timeoutId);
+    if (error) {
+      const status = typeof error.status === 'number' ? error.status : 0;
+      const msg = typeof error.message === 'string' ? error.message : '';
 
-    if (!response.ok) {
-      if (response.status === 401) return { ok: false, error: 'Session expired. Please sign in again.' };
-      if (response.status === 403) return { ok: false, error: 'You do not have access to this resource.' };
-      if (response.status >= 500) return { ok: false, error: 'Server error. Please try again later.' };
+      if (status === 401 || msg.includes('JWT') || msg.includes('auth'))
+        return { ok: false, error: 'Session expired. Please sign in again.' };
+      if (status === 403 || msg.includes('forbidden'))
+        return { ok: false, error: 'You do not have access to this resource.' };
       return { ok: false, error: 'Request failed. Please try again.' };
     }
 
-    const data = (await response.json()) as T;
-    return { ok: true, data };
-  } catch (e) {
-    clearTimeout(timeoutId);
-    if (e instanceof Error && e.name === 'AbortError') {
-      return { ok: false, error: 'Request timed out. Please check your connection.' };
+    if (data === null || data === undefined) {
+      return { ok: false, error: 'No data returned' };
     }
+
+    return { ok: true, data: data as T };
+  } catch {
     return { ok: false, error: 'Network error. Please check your connection.' };
   }
 }

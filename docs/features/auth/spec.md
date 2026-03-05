@@ -4,7 +4,7 @@
 
 Email/password registration and login with persistent sessions. User registers once, logs in once, stays logged in until manual logout or token expiry. OAuth (Google/Apple) is a stretch goal — email/password first.
 
-Backend issues JWT access + refresh token pair. Access token is short-lived (15 min), refresh token is long-lived (30 days). Tokens stored in `expo-secure-store`. On app launch, if refresh token is valid, silently re-authenticate — no login screen. On expiry, redirect to login.
+Supabase Auth manages the full token lifecycle (access + refresh). Tokens are stored in `expo-secure-store` via a custom storage adapter. On app launch, the Supabase client automatically restores the session from secure storage — no login screen needed. On expiry, Supabase silently refreshes; if that fails, redirect to login.
 
 ### Screens
 
@@ -13,20 +13,31 @@ Backend issues JWT access + refresh token pair. Access token is short-lived (15 
 - Both replace current `WelcomeScreen` + `CreateAccountScreen` in the onboarding stack
 - After successful auth → navigate to AI onboarding (if `onboarding_completed === false`) or Main tabs
 
-### API endpoints
+### Data access (Supabase-native — no REST endpoints)
 
-| Method | Path             | Body                  | Response                              | Auth |
-| ------ | ---------------- | --------------------- | ------------------------------------- | ---- |
-| POST   | `/auth/register` | `{ email, password }` | `{ user, accessToken, refreshToken }` | No   |
-| POST   | `/auth/login`    | `{ email, password }` | `{ user, accessToken, refreshToken }` | No   |
-| POST   | `/auth/refresh`  | `{ refreshToken }`    | `{ accessToken, refreshToken }`       | No   |
-| POST   | `/auth/logout`   | —                     | `{ ok }`                              | Yes  |
+Auth operations use the Supabase JS client directly (`supabase.auth.*`). No custom API endpoints are involved.
+
+| Operation     | Supabase method                            | Notes                                          |
+| ------------- | ------------------------------------------ | ---------------------------------------------- |
+| Register      | `supabase.auth.signUp({ email, password })` | Returns session + user; triggers `handle_new_user` DB function to create profiles row |
+| Login         | `supabase.auth.signInWithPassword({ email, password })` | Returns session + user                   |
+| Token refresh | Automatic (`autoRefreshToken: true`)       | Handled internally by supabase-js              |
+| Logout        | `supabase.auth.signOut()`                  | Invalidates session on server + clears secure store |
+| Get session   | `supabase.auth.getSession()`               | Restores from expo-secure-store on app launch  |
+| Get user      | `supabase.auth.getUser()`                  | Fetches current auth user from Supabase        |
+
+Profile data (name, onboarding status, couple) is read/written directly via Supabase PostgREST:
+
+| Operation       | Supabase query                                                          |
+| --------------- | ----------------------------------------------------------------------- |
+| Fetch profile   | `supabase.from('profiles').select(...).eq('id', userId).single()`       |
+| Mark onboarded  | `supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)` |
 
 ### State
 
-- `authStore` (new Zustand slice): `accessToken`, `refreshToken`, `isAuthenticated`, `isLoading`
-- `appStore` updated: remove `isOnboarded` flag (replaced by user's `onboarding_completed` from backend)
-- On logout: wipe tokens from secure store, reset all stores
+- `authStore` (Zustand slice): `user`, `isAuthenticated`, `isInitialized`, `isLoading`, `error`
+- No raw tokens in Zustand — tokens stay in Supabase's secure storage adapter
+- On logout: `supabase.auth.signOut()` + reset all Zustand stores
 
 ## Done when
 
@@ -44,4 +55,4 @@ Backend issues JWT access + refresh token pair. Access token is short-lived (15 
 - Loading state on buttons during network calls
 - No "forgot password" in MVP — add later
 - Keyboard-aware scroll so fields aren't hidden behind keyboard
-- All API calls from this point forward go through an `apiClient` (in `src/data/`) that attaches the access token and handles 401 → refresh → retry
+- All data access goes through typed wrappers in `src/data/` — `supabaseQuery()` for DB reads/writes, `invokeEdgeFunction()` for edge functions
