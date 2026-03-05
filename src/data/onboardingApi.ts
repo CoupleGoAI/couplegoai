@@ -53,7 +53,9 @@ export async function getOnboardingStatus(): Promise<ApiResult<OnboardingStatusR
       return { ok: false, error: 'Failed to load onboarding status.' };
     }
 
-    const completed = (profile?.onboarding_completed as boolean) ?? false;
+    const completed = typeof profile?.onboarding_completed === 'boolean'
+      ? profile.onboarding_completed
+      : false;
 
     if (completed) {
       return { ok: true, data: { completed: true, currentQuestion: 0 } };

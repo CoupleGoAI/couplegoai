@@ -19,7 +19,7 @@ There is **no custom REST server** and **no third-party API**. The backend is en
 ### Env vars (never hard-coded)
 
 ```
-EXPO_PUBLIC_SUPABASE_URL                      — Supabase project URL (also serves as edge function base URL)
+EXPO_PUBLIC_SUPABASE_URL                      — Supabase project URL (edge functions auto-routed by supabase-js)
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY  — Supabase anon key (public, safe to expose)
 ```
 

@@ -37,10 +37,12 @@ export async function invokeEdgeFunction<T>(
     });
 
     if (error) {
+      const status = typeof error.status === 'number' ? error.status : 0;
       const msg = typeof error.message === 'string' ? error.message : '';
-      if (msg.includes('JWT') || msg.includes('401') || msg.includes('auth'))
+
+      if (status === 401 || msg.includes('JWT') || msg.includes('auth'))
         return { ok: false, error: 'Session expired. Please sign in again.' };
-      if (msg.includes('403') || msg.includes('forbidden'))
+      if (status === 403 || msg.includes('forbidden'))
         return { ok: false, error: 'You do not have access to this resource.' };
       return { ok: false, error: 'Request failed. Please try again.' };
     }
