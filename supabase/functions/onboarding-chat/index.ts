@@ -269,15 +269,15 @@ function promptForStep(step: number, profile: ProfileFields): string {
 // ─── Message Persistence ──────────────────────────────────────────────────────
 
 // deno-lint-ignore no-explicit-any
-type AdminClient = ReturnType<typeof createClient<any>>;
+type UserScopedClient = ReturnType<typeof createClient<any>>;
 
 async function storeMessage(
-  admin: AdminClient,
+  client: UserScopedClient,
   userId: string,
   role: "user" | "assistant",
   content: string,
 ): Promise<{ ok: boolean }> {
-  const { error } = await admin.from("messages").insert({
+  const { error } = await client.from("messages").insert({
     user_id: userId,
     role,
     content,
@@ -304,9 +304,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // User-scoped client — only for JWT verification
+    // User-scoped client — forwards the caller's JWT so RLS enforces row-level access
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -319,9 +318,6 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       return json({ error: "Invalid auth token" }, 401);
     }
-
-    // Admin client — bypasses RLS for controlled writes
-    const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // ── 2. Parse body ──────────────────────────────────────────────────────
     let message = "";
@@ -339,7 +335,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 3. Load profile ────────────────────────────────────────────────────
-    const { data: profile, error: profileErr } = await admin
+    const { data: profile, error: profileErr } = await userClient
       .from("profiles")
       .select(
         "name, birth_date, dating_start_date, help_focus, onboarding_completed",
@@ -375,14 +371,14 @@ Deno.serve(async (req) => {
       const prompt = promptForStep(step, fields);
 
       // Persist greeting only if no onboarding messages exist yet
-      const { count } = await admin
+      const { count } = await userClient
         .from("messages")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("conversation_type", "onboarding");
 
       if ((count ?? 0) === 0) {
-        const stored = await storeMessage(admin, user.id, "assistant", prompt);
+        const stored = await storeMessage(userClient, user.id, "assistant", prompt);
         if (!stored.ok) {
           return json({ error: "Internal server error" }, 500);
         }
@@ -398,7 +394,7 @@ Deno.serve(async (req) => {
     // ── 6. Non-empty message → validate & advance ─────────────────────────
 
     // Store user message
-    const userMsgResult = await storeMessage(admin, user.id, "user", message);
+    const userMsgResult = await storeMessage(userClient, user.id, "user", message);
     if (!userMsgResult.ok) {
       return json({ error: "Internal server error" }, 500);
     }
@@ -433,7 +429,7 @@ Deno.serve(async (req) => {
     if (!validation.valid) {
       const reask =
         REASK[step] ?? "Sorry, I didn't get that. Could you try again?";
-      const reaskResult = await storeMessage(admin, user.id, "assistant", reask);
+      const reaskResult = await storeMessage(userClient, user.id, "assistant", reask);
       if (!reaskResult.ok) {
         return json({ error: "Internal server error" }, 500);
       }
@@ -452,7 +448,7 @@ Deno.serve(async (req) => {
       profileUpdate.onboarding_completed = true;
     }
 
-    const { error: updateErr } = await admin
+    const { error: updateErr } = await userClient
       .from("profiles")
       .update(profileUpdate)
       .eq("id", user.id);
@@ -472,7 +468,7 @@ Deno.serve(async (req) => {
       ? completionMsg(updatedFields.name ?? "friend")
       : promptForStep(nextStep, updatedFields);
 
-    const replyResult = await storeMessage(admin, user.id, "assistant", reply);
+    const replyResult = await storeMessage(userClient, user.id, "assistant", reply);
     if (!replyResult.ok) {
       return json({ error: "Internal server error" }, 500);
     }
