@@ -10,14 +10,16 @@ Use Edge Functions for:
 - secure token generation
 - validation / business logic
 
-Client calls:
+Client calls always go through `invokeEdgeFunction()` in `src/data/apiClient.ts`,
+which loads the session and explicitly attaches the **JWT Bearer token**:
 
 ```ts
-supabase.functions.invoke("<function-name>", payload);
+invokeEdgeFunction("<function-name>", payload);
 ```
 ````
 
-`supa­base-js` automatically attaches the **JWT Bearer token**.
+Always ensure the session is loaded before calling `invokeEdgeFunction()`.
+`supabase.functions.invoke()` must **not** be called directly from UI code.
 
 ---
 
@@ -239,6 +241,35 @@ supabase functions deploy <name>
 - Multi-table writes only in Edge Functions
 - Simple reads/writes use direct DB + RLS
 
-```
+## Supabase client usage inside Edge Functions
 
-```
+1. **Always use a user-scoped client for database operations.** Create the client with
+   `SUPABASE_ANON_KEY` and forward the caller's JWT via the `Authorization` header so
+   that Row-Level Security (RLS) enforces row-level access automatically:
+
+   ```ts
+   const userClient = createClient(
+     Deno.env.get('SUPABASE_URL')!,
+     Deno.env.get('SUPABASE_ANON_KEY')!,
+     { global: { headers: { Authorization: req.headers.get('Authorization')! } } },
+   );
+   ```
+
+   Never use the `service_role` admin client unless the operation genuinely requires
+   cross-user access (e.g. audit logs, billing, admin tasks). The service role key
+   **bypasses RLS entirely** and must not be used for ordinary user-owned data.
+
+2. **The React Native client must always supply the user's JWT.** Load the session
+   before invoking an edge function and attach it as a `Bearer` token:
+
+   ```ts
+   const { data: { session } } = await supabase.auth.getSession();
+   // session must be non-null before calling invokeEdgeFunction
+   await supabase.functions.invoke('function-name', {
+     body: { ... },
+     headers: { Authorization: `Bearer ${session.access_token}` },
+   });
+   ```
+
+   In practice, always go through `invokeEdgeFunction()` in `src/data/apiClient.ts`,
+   which handles session retrieval and header injection for you.
