@@ -1,57 +1,36 @@
+[analytics]
+enabled = false
+
+# verify_jwt = false on every function because our project uses ES256 (ECC P-256)
+# JWT signing. The Supabase gateway only validates HS256, so it rejects all valid
+# user tokens. Each function handles auth internally via the Auth REST API instead.
 
 [functions.onboarding-chat]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/onboarding-chat/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/onboarding-chat/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/onboarding-chat/*.html" ]
 
 [functions.ai-chat]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/ai-chat/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/ai-chat/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/ai-chat/*.html" ]
 
 [functions.pairing-connect]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/pairing-connect/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/pairing-connect/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/pairing-connect/*.html" ]
 
 [functions.pairing-disconnect]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/pairing-disconnect/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/pairing-disconnect/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/pairing-disconnect/*.html" ]
 
 [functions.pairing-generate]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/pairing-generate/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/pairing-generate/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/pairing-generate/*.html" ]
-[analytics]
-enabled = false

@@ -41,19 +41,22 @@ create policy "Users can view own profile"
 -- NOTE: "Users can view partner profile" policy lives in 03_couples.sql
 -- because it references public.couples which does not exist yet.
 
--- Users can insert their own profile (used by handle_new_user trigger via
--- security definer, but also allowed directly for safety).
-create policy "Users can insert own profile"
-  on public.profiles for insert
-  to authenticated
-  with check ( (select auth.uid()) = id );
+-- Insert is intentionally omitted — profiles are created exclusively by the
+-- handle_new_user() trigger (security definer), never directly from the client.
 
 -- Users can update their own profile.
+-- couple_id is excluded from client updates — pairing is managed server-side
+-- via the pairing flow (service role), so we ensure it cannot be changed here.
 create policy "Users can update own profile"
   on public.profiles for update
   to authenticated
   using ( (select auth.uid()) = id )
-  with check ( (select auth.uid()) = id );
+  with check (
+    (select auth.uid()) = id
+    and couple_id is not distinct from (
+      select couple_id from public.profiles where id = (select auth.uid())
+    )
+  );
 
 -- ── Auto-update updated_at ──────────────────────────────────────────────────
 
