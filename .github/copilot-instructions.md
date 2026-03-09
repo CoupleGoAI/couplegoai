@@ -46,10 +46,12 @@ Always use aliases in imports. Never use deep relative paths (`../../..`).
 
 If docs exist for a feature, **do not contradict them**. Update docs only when asked or when implementation reality requires it.
 
+**Do not create or update any documentation files unless explicitly asked.** This includes `docs/`, `README.md`, and any `.md` files. Write code only.
+
 ### Feature creation entry point
 
-To start a new feature, use the **Orchestrator agent** (`@Orchestrator`).
-It will scaffold `docs/features/<feature>/`, create or validate `spec.md` (from `docs/template-spec.md`), then drive: Architect → Security → Implementer → Reviewer.
+1. Invoke **`@Planner`** with a feature name + description → produces `plan.md` + `threat-model.md`
+2. Invoke **`@Implementer`** → builds the feature per those docs
 
 ---
 
@@ -243,7 +245,68 @@ Radii: `radius=20`, `radiusMd=16`, `radiusSm=12`, `radiusFull=999`. Spacing: `xs
 
 ---
 
-## 9 · Output expectations (every meaningful change)
+## 9 · Supabase & backend (non-negotiable)
+
+### JWT & edge functions
+
+- This project uses **ES256 (ECC P-256)** JWT signing. The Supabase gateway only supports HS256 and will reject all valid user tokens with 401 if `verify_jwt = true`.
+- **Every edge function must have `verify_jwt = false`** in `supabase/config.toml`.
+- Auth inside edge functions must use the **Auth REST API directly** — never `client.auth.getUser()` which uses HS256 verification internally:
+
+```typescript
+const authResponse = await fetch(
+  `${Deno.env.get("SUPABASE_URL")}/auth/v1/user`,
+  {
+    headers: {
+      Authorization: authHeader,
+      apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+    },
+  },
+);
+if (!authResponse.ok) return json({ error: "Auth failed" }, 401);
+const user = await authResponse.json();
+```
+
+### React Native → edge function calls
+
+- **Never use `supabase.functions.invoke()`** — it strips the `Authorization` header in `supabase-js-react-native` (known bug).
+- Always use **plain `fetch`** with explicit headers:
+
+```typescript
+const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+await fetch(
+  `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/<function-name>`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session!.access_token}`,
+      apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!, // legacy anon key (eyJhbGci...)
+    },
+    body: JSON.stringify(payload),
+  },
+);
+```
+
+### API keys
+
+- Two separate keys exist — use the correct one for each context:
+  - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` (`sb_publishable_...`) — for direct DB/Auth calls via the supabase client.
+  - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (`eyJhbGci...`) — **required as `apikey` header** when calling edge functions. The gateway rejects the publishable key.
+- Never use the `service_role` key on the client. Edge functions access it via `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`.
+
+### RLS & DB clients in edge functions
+
+- Use a **user-scoped client** (anon key + forwarded JWT) for operations where RLS should apply.
+- Use a **service role client** for atomic multi-table writes or operations that must bypass RLS (pairing, disconnect). Identity must always be verified via the Auth REST API first before using the service role client.
+- Never expose the service role key to the client under any circumstance.
+
+---
+
+## 10 · Output expectations (every meaningful change)
 
 1. **What** changed and **why** (one sentence)
 2. **Files** changed (grouped by layer)
