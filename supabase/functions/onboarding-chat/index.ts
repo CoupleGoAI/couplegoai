@@ -116,7 +116,7 @@ function validateBirthDate(input: string): { valid: boolean; value: string; hint
   const age = now.getFullYear() - parsed.getFullYear();
   const adjustedAge =
     now.getMonth() > parsed.getMonth() ||
-    (now.getMonth() === parsed.getMonth() && now.getDate() >= parsed.getDate())
+      (now.getMonth() === parsed.getMonth() && now.getDate() >= parsed.getDate())
       ? age
       : age - 1;
 
@@ -214,12 +214,12 @@ Deno.serve(async (req) => {
     const authUser = (await authResponse.json()) as { id: string };
     const userId = authUser.id; // MUST-4: user_id from auth only
 
-    // ── User-scoped Supabase client (anon key + forwarded JWT for RLS) ──
-    const supabase = createClient(supabaseUrl, anonKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
-    });
+    // ── Service role client — PostgREST cannot verify ES256 JWTs so a
+    //    user-scoped client would fail RLS (auth.uid() = NULL). Identity is
+    //    already verified via the Auth REST API above; we scope every query
+    //    with the verified userId instead. ──
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // ── Parse request body ───────────────────────────────────────────────
     let message = "";
@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (profileError || !profile) {
-      return json({ error: "Profile not found" }, 404);
+      return json({ error: "Profile not found", detail: profileError?.message }, 404);
     }
 
     const currentStep = deriveStep(profile as ProfileRow);

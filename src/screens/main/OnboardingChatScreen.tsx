@@ -145,8 +145,8 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
   // ── Loading splash while initializing ─────────────────────────────────────
   if (isInitializing) {
     return (
-      <LinearGradient colors={gradients.heroWash} className="flex-1">
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+      <LinearGradient colors={gradients.heroWash} style={styles.flex}>
+        <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
           <View className="flex-1 items-center justify-center px-5 gap-xl">
             <Text style={styles.emoji}>💕</Text>
             <ActivityIndicator color={colors.primary} size="large" />
@@ -160,8 +160,8 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
   // ── Completion screen ──────────────────────────────────────────────────────
   if (isComplete) {
     return (
-      <LinearGradient colors={gradients.heroWash} className="flex-1">
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+      <LinearGradient colors={gradients.heroWash} style={styles.flex}>
+        <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
           <View className="flex-1 items-center justify-center px-5 gap-xl">
             <Text style={styles.completionEmoji}>🎉</Text>
             <Text
@@ -199,11 +199,11 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
   const sendDisabled = !inputText.trim() || isLoading || showTyping;
 
   return (
-    <LinearGradient colors={gradients.heroWash} className="flex-1">
-      <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+    <LinearGradient colors={gradients.heroWash} style={styles.flex}>
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1"
+          style={styles.flex}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
         >
           {/* Header */}
@@ -324,6 +324,7 @@ export function OnboardingChatScreen(_props: OnboardingScreenProps): React.React
 
 const styles = StyleSheet.create({
   // Emoji sizing — non-standard sizes with no token match
+  flex: { flex: 1 },
   emoji: { fontSize: 24 },
   completionEmoji: { fontSize: 64 },
 

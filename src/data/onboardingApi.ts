@@ -121,28 +121,34 @@ export async function sendOnboardingMessage(
     }
 
     const token = sessionData.session.access_token;
+    const url = `${SUPABASE_URL}/functions/v1/onboarding-chat`;
 
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/onboarding-chat`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ message }),
+    console.log('[onboardingApi] sendMessage →', { url, message, hasToken: !!token });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY,
       },
-    );
+      body: JSON.stringify({ message }),
+    });
+
+    console.log('[onboardingApi] response status:', response.status);
 
     const data = await response.json() as OnboardingResponse;
 
+    console.log('[onboardingApi] response body:', JSON.stringify(data));
+
     if (!response.ok || data.error) {
+      console.warn('[onboardingApi] error:', data.error ?? `HTTP ${response.status}`);
       return { ok: false, error: data.error ?? 'Request failed' };
     }
 
     return { ok: true, data };
-  } catch {
+  } catch (err) {
+    console.error('[onboardingApi] network error:', err);
     return { ok: false, error: 'Network error' };
   }
 }
