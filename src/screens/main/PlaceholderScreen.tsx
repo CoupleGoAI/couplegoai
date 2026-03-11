@@ -1,12 +1,37 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GradientButton from '@components/ui/GradientButton';
 import { useAuth } from '@hooks/useAuth';
+import { usePairing } from '@hooks/usePairing';
+import { useAuthStore } from '@store/authStore';
 import { colors, textStyles, spacing } from '@/theme/tokens';
 
 export default function PlaceholderScreen() {
     const { signOut } = useAuth();
+    const { disconnect, isPending: isDisconnecting } = usePairing();
+    const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
+    const [isSigningOut, setIsSigningOut] = useState(false);
+
+    const handleDisconnect = () => {
+        Alert.alert(
+            'Disconnect from partner',
+            'Are you sure you want to disconnect? Both you and your partner will return to unpaired state.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Disconnect',
+                    style: 'destructive',
+                    onPress: () => { void disconnect(); },
+                },
+            ],
+        );
+    };
+
+    const handleSignOut = () => {
+        setIsSigningOut(true);
+        void signOut().finally(() => setIsSigningOut(false));
+    };
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -16,11 +41,23 @@ export default function PlaceholderScreen() {
                 <Text style={styles.subtitle}>
                     Welcome to CoupleGoAI. More features coming soon.
                 </Text>
+
+                {coupleId !== null && (
+                    <GradientButton
+                        label="Disconnect from partner"
+                        onPress={handleDisconnect}
+                        variant="outline"
+                        size="md"
+                        loading={isDisconnecting}
+                    />
+                )}
+
                 <GradientButton
                     label="Sign Out"
-                    onPress={() => { void signOut(); }}
+                    onPress={handleSignOut}
                     variant="outline"
                     size="md"
+                    loading={isSigningOut}
                 />
             </View>
         </SafeAreaView>

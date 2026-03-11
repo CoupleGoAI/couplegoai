@@ -10,6 +10,9 @@ export type AuthStackParamList = {
 export type RootStackParamList = {
     Auth: undefined;
     Onboarding: undefined;
+    GenerateQR: undefined;
+    ScanQR: undefined;
+    ConnectionConfirmed: { partnerName: string | null; coupleId: string };
     Main: undefined;
 };
 
@@ -23,3 +26,8 @@ export type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, 'Re
 
 // Onboarding screen props
 export type OnboardingScreenProps = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
+
+// Pairing screen props
+export type GenerateQRScreenProps = NativeStackScreenProps<RootStackParamList, 'GenerateQR'>;
+export type ScanQRScreenProps = NativeStackScreenProps<RootStackParamList, 'ScanQR'>;
+export type ConnectionConfirmedScreenProps = NativeStackScreenProps<RootStackParamList, 'ConnectionConfirmed'>;

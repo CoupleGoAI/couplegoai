@@ -8,6 +8,9 @@ import SplashScreen from '@screens/auth/SplashScreen';
 import AuthNavigator from '@navigation/AuthNavigator';
 import { OnboardingChatScreen } from '@screens/main/OnboardingChatScreen';
 import PlaceholderScreen from '@screens/main/PlaceholderScreen';
+import { GenerateQRScreen } from '@screens/main/GenerateQRScreen';
+import { ScanQRScreen } from '@screens/main/ScanQRScreen';
+import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -15,6 +18,7 @@ export default function RootNavigator() {
     const isInitialized = useAuthStore((s) => s.isInitialized);
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     const onboardingCompleted = useAuthStore((s) => s.user?.onboardingCompleted ?? false);
+    const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
     const { initialize } = useAuth();
 
     useEffect(() => {
@@ -32,6 +36,20 @@ export default function RootNavigator() {
                     <Stack.Screen name="Auth" component={AuthNavigator} />
                 ) : !onboardingCompleted ? (
                     <Stack.Screen name="Onboarding" component={OnboardingChatScreen} />
+                ) : coupleId === null ? (
+                    <>
+                        <Stack.Screen name="GenerateQR" component={GenerateQRScreen} />
+                        <Stack.Screen
+                            name="ScanQR"
+                            component={ScanQRScreen}
+                            options={{ animation: 'slide_from_right' }}
+                        />
+                        <Stack.Screen
+                            name="ConnectionConfirmed"
+                            component={ConnectionConfirmedScreen}
+                            options={{ animation: 'slide_from_right', gestureEnabled: false }}
+                        />
+                    </>
                 ) : (
                     <Stack.Screen name="Main" component={PlaceholderScreen} />
                 )}
