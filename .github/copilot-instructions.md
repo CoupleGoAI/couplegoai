@@ -53,6 +53,11 @@ If docs exist for a feature, **do not contradict them**. Update docs only when a
 1. Invoke **`@Planner`** with a feature name + description → produces `plan.md` + `threat-model.md`
 2. Invoke **`@Implementer`** → builds the feature per those docs
 
+### Feature modification entry point
+
+1. Invoke **`@Modifier`** with the feature name + a description of what should change → reads existing docs and code, then updates `spec.md`, `plan.md`, `threat-model.md`, and `implementation-notes.md`
+2. Invoke **`@Implementer`** → applies the code changes described in the updated docs
+
 ---
 
 ## 1 · Architecture — strict layered boundaries
