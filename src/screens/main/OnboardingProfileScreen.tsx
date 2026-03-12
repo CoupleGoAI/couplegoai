@@ -5,7 +5,9 @@ import {
     TextInput,
     FlatList,
     KeyboardAvoidingView,
+    Modal,
     Platform,
+    Pressable,
     TouchableOpacity,
     ActivityIndicator,
     StyleSheet,
@@ -25,11 +27,13 @@ import GradientButton from '@components/ui/GradientButton';
 import { ChatBubble } from '@components/chat/ChatBubble';
 import { TypingIndicator } from '@components/chat/TypingIndicator';
 import { useOnboarding } from '@hooks/useOnboarding';
+import { useAuth } from '@hooks/useAuth';
 import {
     colors,
     gradients,
     fontFamilies,
     letterSpacing,
+    radii,
     shadows,
     spacing,
 } from '@/theme/tokens';
@@ -81,9 +85,12 @@ export function OnboardingProfileScreen(_props: OnboardingProfileScreenProps): R
 
     const [inputText, setInputText] = useState('');
     const [showTyping, setShowTyping] = useState(false);
+    const [isDevMenuVisible, setIsDevMenuVisible] = useState(false);
     const flatListRef = useRef<FlatList<OnboardingMessage>>(null);
     const hasTriggeredFirst = useRef(false);
     const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastCompletionEmojiTapRef = useRef(0);
+    const { signOut } = useAuth();
 
     // Send button animation (scale + spin)
     const sendScale = useSharedValue(1);
@@ -153,6 +160,22 @@ export function OnboardingProfileScreen(_props: OnboardingProfileScreenProps): R
         void sendMessage('');
     }, [isLoading, sendMessage]);
 
+    const handleCompletionEmojiPress = useCallback(() => {
+        if (!__DEV__) return;
+
+        const now = Date.now();
+        if (now - lastCompletionEmojiTapRef.current < 350) {
+            setIsDevMenuVisible(true);
+        }
+
+        lastCompletionEmojiTapRef.current = now;
+    }, []);
+
+    const handleDevSignOut = useCallback(async () => {
+        setIsDevMenuVisible(false);
+        await signOut();
+    }, [signOut]);
+
     // ── Loading splash while initializing ─────────────────────────────────────
     if (isInitializing) {
         return (
@@ -174,7 +197,14 @@ export function OnboardingProfileScreen(_props: OnboardingProfileScreenProps): R
             <LinearGradient colors={gradients.heroWash} style={styles.flex}>
                 <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
                     <View className="flex-1 items-center justify-center px-5 gap-xl">
-                        <Text style={styles.completionEmoji}>🎉</Text>
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            onPress={handleCompletionEmojiPress}
+                            accessibilityRole={__DEV__ ? 'button' : undefined}
+                            accessibilityLabel={__DEV__ ? 'Open developer menu' : undefined}
+                        >
+                            <Text style={styles.completionEmoji}>🎉</Text>
+                        </TouchableOpacity>
                         <Text
                             className="text-3xl font-bold text-foreground text-center"
                             style={styles.serifFont}
@@ -201,6 +231,25 @@ export function OnboardingProfileScreen(_props: OnboardingProfileScreenProps): R
                             loading={isLoading}
                         />
                     </View>
+
+                    <Modal
+                        visible={isDevMenuVisible}
+                        animationType="fade"
+                        transparent
+                        onRequestClose={() => setIsDevMenuVisible(false)}
+                    >
+                        <Pressable style={styles.devMenuBackdrop} onPress={() => setIsDevMenuVisible(false)}>
+                            <Pressable style={styles.devMenuCard} onPress={() => undefined}>
+                                <Text style={styles.devMenuTitle}>Developer menu</Text>
+                                <TouchableOpacity
+                                    style={styles.devMenuAction}
+                                    onPress={() => { void handleDevSignOut(); }}
+                                >
+                                    <Text style={styles.devMenuActionText}>Sign out and clear storage</Text>
+                                </TouchableOpacity>
+                            </Pressable>
+                        </Pressable>
+                    </Modal>
                 </SafeAreaView>
             </LinearGradient>
         );
@@ -359,5 +408,39 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center' as const,
         justifyContent: 'center' as const,
+    },
+    devMenuBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(29, 25, 43, 0.16)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.xl,
+    },
+    devMenuCard: {
+        width: '100%',
+        maxWidth: 320,
+        borderRadius: radii.radius,
+        padding: spacing.lg,
+        gap: spacing.md,
+        backgroundColor: 'rgba(255, 255, 255, 0.88)',
+        ...shadows.md,
+    },
+    devMenuTitle: {
+        color: colors.foregroundMuted,
+        textAlign: 'center',
+        fontFamily: fontFamilies.sansBold,
+        fontSize: 13,
+    },
+    devMenuAction: {
+        borderRadius: radii.radiusMd,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    },
+    devMenuActionText: {
+        color: colors.error,
+        textAlign: 'center',
+        fontFamily: fontFamilies.sans,
+        fontSize: 15,
     },
 });

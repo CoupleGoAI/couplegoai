@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { ScanQRScreenProps } from '@navigation/types';
 import { usePairing } from '@hooks/usePairing';
 import { useHaptics } from '@hooks/useHaptics';
+import { useAuthStore } from '@store/authStore';
 import GradientButton from '@components/ui/GradientButton';
-import { colors, spacing, textStyles, radii } from '@/theme/tokens';
+import { colors, gradients, spacing, textStyles, radii } from '@/theme/tokens';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,7 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
     const [permission, requestPermission] = useCameraPermissions();
     const { clearEntryScreen, connect, isPending, error } = usePairing();
     const { success: hapticSuccess, error: hapticError } = useHaptics();
+    const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
     const scannedRef = useRef(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
@@ -24,7 +27,8 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
     }, [clearEntryScreen]);
 
     useEffect(() => {
-      if (!permission?.granted) {
+      // Trigger native OS dialog when status is unknown or can be requested again (Android)
+      if (permission === null || (!permission.granted && permission.canAskAgain)) {
         void requestPermission();
       }
     }, [permission, requestPermission]);
@@ -61,18 +65,21 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
         navigation.goBack();
         return;
       }
-
       navigation.replace('GenerateQR');
     };
 
-    // Camera permission denied
+    const handleSkip = () => {
+      setPairingSkipped(true);
+    };
+
+    // Camera permission permanently denied — direct user to Settings
     if (permission && !permission.granted && !permission.canAskAgain) {
       return (
         <SafeAreaView style={styles.safe}>
           <View style={styles.centeredContainer}>
             <Text style={styles.emoji}>📷</Text>
-            <Text style={styles.title}>Camera access needed</Text>
-            <Text style={styles.subtitle}>
+            <Text style={styles.permTitle}>Camera access needed</Text>
+            <Text style={styles.permSubtitle}>
               Camera access is needed to scan your partner&apos;s QR code.
               Please enable it in your device settings.
             </Text>
@@ -81,30 +88,23 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
               onPress={handleGenerateInstead}
               variant="outline"
               size="md"
+              fullWidth
             />
           </View>
         </SafeAreaView>
       );
     }
 
-    // Permission not yet determined or requesting
+    // Permission not yet determined — pinkish loading screen while native OS dialog appears
     if (!permission?.granted) {
       return (
-        <SafeAreaView style={styles.safe}>
-          <View style={styles.centeredContainer}>
-            <Text style={styles.emoji}>📷</Text>
-            <Text style={styles.title}>Camera needed</Text>
-            <Text style={styles.subtitle}>
-              We need camera access to scan your partner&apos;s QR code.
-            </Text>
-            <GradientButton
-              label="Allow camera"
-              onPress={() => { void requestPermission(); }}
-              variant="primary"
-              size="md"
-            />
-          </View>
-        </SafeAreaView>
+        <LinearGradient colors={gradients.heroWash} style={styles.flex}>
+          <SafeAreaView style={styles.flex}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
       );
     }
 
@@ -137,7 +137,7 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
           </View>
 
           {/* Status / error */}
-          <View style={styles.footer}>
+          <View style={styles.statusArea}>
             {isPending ? (
               <Text style={styles.statusText}>Connecting…</Text>
             ) : localError ? (
@@ -151,6 +151,17 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
               <Text style={styles.statusText}>Scanning…</Text>
             )}
           </View>
+
+          {/* Footer toggle */}
+          <View style={styles.footer}>
+            <Text style={styles.toggleLabel}>Want to generate instead?</Text>
+            <TouchableOpacity onPress={handleGenerateInstead} activeOpacity={0.75}>
+              <Text style={styles.toggleLink}>Generate your QR code</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSkip} activeOpacity={0.75} style={styles.skipButton}>
+              <Text style={styles.skipText}>Skip for now</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -160,16 +171,24 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
 const FRAME_SIZE = 220;
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   safe: {
     flex: 1,
-    backgroundColor: colors.foreground,
+    backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   container: {
     flex: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   centeredContainer: {
     flex: 1,
@@ -188,16 +207,26 @@ const styles = StyleSheet.create({
   },
   backBtnText: {
     ...textStyles.bodyMd,
-    color: colors.primaryLight,
+    color: colors.primary,
   },
   title: {
-    ...textStyles.h1,
-    color: colors.white,
+    ...textStyles.displaySm,
+    color: colors.foreground,
     textAlign: 'center',
   },
   subtitle: {
     ...textStyles.bodyMd,
-    color: 'rgba(255,255,255,0.65)',
+    color: colors.gray,
+    textAlign: 'center',
+  },
+  permTitle: {
+    ...textStyles.h1,
+    color: colors.foreground,
+    textAlign: 'center',
+  },
+  permSubtitle: {
+    ...textStyles.bodyMd,
+    color: colors.gray,
     textAlign: 'center',
   },
   cameraContainer: {
@@ -221,14 +250,14 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryLight,
     borderRadius: radii.radiusSm,
   },
-  footer: {
+  statusArea: {
     alignItems: 'center',
-    minHeight: 48,
+    minHeight: 40,
     justifyContent: 'center',
   },
   statusText: {
     ...textStyles.bodyMd,
-    color: 'rgba(255,255,255,0.65)',
+    color: colors.gray,
     textAlign: 'center',
   },
   errorRow: {
@@ -242,7 +271,28 @@ const styles = StyleSheet.create({
   },
   retryText: {
     ...textStyles.bodySm,
-    color: colors.primaryLight,
+    color: colors.primary,
+  },
+  footer: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  toggleLabel: {
+    ...textStyles.bodySm,
+    color: colors.gray,
+  },
+  toggleLink: {
+    ...textStyles.bodySm,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  skipButton: {
+    marginTop: spacing.md,
+  },
+  skipText: {
+    ...textStyles.bodySm,
+    color: colors.gray,
+    textDecorationLine: 'underline',
   },
   emoji: {
     fontSize: 48,

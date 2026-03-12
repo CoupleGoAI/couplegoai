@@ -89,6 +89,7 @@ export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
                   onPress={handleRegenerate}
                   variant="outline"
                   size="md"
+                  fullWidth
                 />
               </View>
             ) : token && !isExpired ? (
@@ -116,6 +117,7 @@ export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
                   onPress={handleRegenerate}
                   variant="primary"
                   size="md"
+                  fullWidth
                 />
               </View>
             ) : null}
