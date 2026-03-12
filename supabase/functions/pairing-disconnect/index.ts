@@ -1,32 +1,107 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+// =============================================================================
+// pairing-disconnect — Deactivate couple and clear couple_id on both profiles
+//
+// Auth:  JWT verified via Auth REST API (ES256 compatible) — MUST-1
+// user_id from auth response only — MUST-2
+// MUST-6: verifies authenticated user is partner1 or partner2 before acting
+// Idempotent: already-disconnected couple returns success
+// service_role client after auth verification — MUST-NOT-3
+// =============================================================================
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "@supabase/functions-js/edge-runtime.d.ts"
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-console.log("Hello from Functions!")
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
 
 Deno.serve(async (req) => {
-  const { name } = await req.json()
-  const data = {
-    message: `Hello ${name}!`,
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
   }
 
-  return new Response(
-    JSON.stringify(data),
-    { headers: { "Content-Type": "application/json" } },
-  )
-})
+  // MUST-1: Verify JWT via Auth REST API — never client.auth.getUser()
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
-/* To invoke locally:
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
+  const authResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: supabaseAnonKey },
+  });
+  if (!authResp.ok) return json({ error: "Unauthorized" }, 401);
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/pairing-disconnect' \
-    --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
+  // MUST-2: derive user identity from auth response only — never request body
+  const authUser = await authResp.json() as { id: string };
+  const userId = authUser.id;
 
-*/
+  // MUST-NOT-3: service_role client only after auth verification
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Read the user's current couple_id
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("couple_id")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) return json({ error: "Failed to read profile" }, 500);
+  if (!profile?.couple_id) return json({ error: "Not paired" }, 409);
+
+  const coupleId = profile.couple_id as string;
+
+  // MUST-6: verify couple exists and user is a partner
+  const { data: couple, error: coupleError } = await supabase
+    .from("couples")
+    .select("id, partner1_id, partner2_id, is_active")
+    .eq("id", coupleId)
+    .single();
+
+  if (coupleError || !couple) return json({ error: "Couple not found" }, 404);
+
+  const c = couple as {
+    id: string;
+    partner1_id: string;
+    partner2_id: string;
+    is_active: boolean;
+  };
+
+  // MUST-6: reject if user is not a member of this couple
+  if (c.partner1_id !== userId && c.partner2_id !== userId) {
+    return json({ error: "Forbidden" }, 403);
+  }
+
+  // Idempotent: already disconnected → success
+  if (!c.is_active) {
+    return json({ ok: true });
+  }
+
+  const otherId = c.partner1_id === userId ? c.partner2_id : c.partner1_id;
+
+  // Deactivate couple
+  const { error: coupleUpdateError } = await supabase
+    .from("couples")
+    .update({ is_active: false, disconnected_at: new Date().toISOString() })
+    .eq("id", coupleId);
+
+  if (coupleUpdateError) return json({ error: "Failed to deactivate couple" }, 500);
+
+  // Clear couple_id on both profiles
+  await supabase
+    .from("profiles")
+    .update({ couple_id: null })
+    .in("id", [userId, otherId]);
+
+  return json({ ok: true });
+});

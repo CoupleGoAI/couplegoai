@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useAuthStore } from '@store/authStore';
 import { useOnboardingStore } from '@store/onboardingStore';
+import { usePairingStore } from '@store/pairingStore';
 import * as authData from '@data/auth';
 import { supabase } from '@data/supabase';
 
@@ -19,6 +20,7 @@ export function useAuth(): {
     const setError = useAuthStore((s) => s.setError);
     const resetAuth = useAuthStore((s) => s.reset);
     const resetOnboarding = useOnboardingStore((s) => s.reset);
+    const resetPairing = usePairingStore((s) => s.reset);
 
     /**
      * Hydrate user from Supabase auth + profiles table.
@@ -77,11 +79,12 @@ export function useAuth(): {
             if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
                 resetAuth();
                 resetOnboarding();
+                resetPairing();
             }
         });
 
         return () => subscription.unsubscribe();
-    }, [hydrateUser, resetAuth, resetOnboarding]);
+    }, [hydrateUser, resetAuth, resetOnboarding, resetPairing]);
 
     /** Sign up with email + password */
     const signUp = useCallback(
@@ -122,14 +125,15 @@ export function useAuth(): {
         [setLoading, setError],
     );
 
-    /** Sign out — wipe auth store + onboarding store + secure storage */
+    /** Sign out — wipe auth store + onboarding store + pairing store + secure storage */
     const signOut = useCallback(async (): Promise<void> => {
         setLoading(true);
         await authData.signOut();
         resetAuth();
         resetOnboarding();
+        resetPairing();
         setLoading(false);
-    }, [setLoading, resetAuth, resetOnboarding]);
+    }, [setLoading, resetAuth, resetOnboarding, resetPairing]);
 
     return { initialize, signUp, signIn, signOut };
 }
