@@ -15,6 +15,14 @@ export interface UsePairingReturn {
   generateToken: () => Promise<void>;
   connect: (rawQR: string) => Promise<{ partnerName: string | null; coupleId: string } | null>;
   disconnect: () => Promise<void>;
+  /**
+   * Subscribe to Supabase Realtime events for when the current user's partner
+   * scans their QR code (i.e. when `couple_id` is set on the user's profile).
+   * Returns a cleanup function to unsubscribe.
+   */
+  subscribeToPartnerConnected: (
+    onConnected: (partnerName: string | null, coupleId: string) => void,
+  ) => () => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -111,5 +119,29 @@ export function usePairing(): UsePairingReturn {
     setEntryScreen(null);
   }, [setEntryScreen]);
 
-  return { token, expiresAt, isPending, error, clearEntryScreen, generateToken, connect, disconnect };
+  /**
+   * Subscribe to realtime events on the current user's profile.
+   * When the partner scans the QR code, pairing-connect sets couple_id on
+   * this profile — the subscription fires and we fetch partner info to hand
+   * off to the caller (typically for navigation to ConnectionConfirmed).
+   */
+  const subscribeToPartnerConnected = useCallback(
+    (onConnected: (partnerName: string | null, coupleId: string) => void): (() => void) => {
+      if (!user?.id) return () => undefined;
+
+      return pairingApi.subscribeToPartnerConnected(user.id, (coupleId) => {
+        void (async () => {
+          const statusResult = await pairingApi.fetchCoupleStatus();
+          const partnerName =
+            statusResult.ok && statusResult.data.partner
+              ? statusResult.data.partner.name
+              : null;
+          onConnected(partnerName, coupleId);
+        })();
+      });
+    },
+    [user?.id],
+  );
+
+  return { token, expiresAt, isPending, error, clearEntryScreen, generateToken, connect, disconnect, subscribeToPartnerConnected };
 }

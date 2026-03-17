@@ -129,6 +129,45 @@ export async function disconnect(): Promise<PairingResult<PairingDisconnectRespo
 }
 
 /**
+ * Subscribe to Supabase Realtime UPDATE events on the current user's profile row.
+ * Fires `onCoupleIdReceived` the moment another user's scan causes `couple_id`
+ * to be set on this profile (via the pairing-connect edge function).
+ *
+ * The caller is responsible for invoking the returned cleanup function when
+ * the subscription is no longer needed (e.g. on screen unmount).
+ *
+ * SECURITY: filter is by the authenticated user's own profile id — no foreign
+ * data is received through this channel.
+ */
+export function subscribeToPartnerConnected(
+  userId: string,
+  onCoupleIdReceived: (coupleId: string) => void,
+): () => void {
+  const channel = supabase
+    .channel(`profile-pairing-${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${userId}`,
+      },
+      (payload) => {
+        const newProfile = payload.new as { couple_id?: string | null };
+        if (newProfile.couple_id) {
+          onCoupleIdReceived(newProfile.couple_id);
+        }
+      },
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+/**
  * Fetch couple status via direct DB query (read-only — no edge function needed).
  * Returns partner info from the profiles table via RLS-enforced join.
  */

@@ -38,7 +38,7 @@ function deriveShortPairCode(token: string | null): string {
 
 export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
   ({ navigation }) => {
-    const { token, expiresAt, isPending, error, generateToken } = usePairing();
+    const { token, expiresAt, isPending, error, generateToken, subscribeToPartnerConnected } = usePairing();
     const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
     const [secondsLeft, setSecondsLeft] = useState<number>(0);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -65,6 +65,14 @@ export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
         if (timerRef.current) clearInterval(timerRef.current);
       };
     }, [expiresAt]);
+
+    // Subscribe to Supabase Realtime: navigate when partner scans the QR code
+    useEffect(() => {
+      const unsubscribe = subscribeToPartnerConnected((partnerName, coupleId) => {
+        navigation.navigate('ConnectionConfirmed', { partnerName, coupleId });
+      });
+      return unsubscribe;
+    }, [subscribeToPartnerConnected, navigation]);
 
     const handleRegenerate = () => {
       void generateToken();
