@@ -13,16 +13,9 @@ export interface UsePairingReturn {
   error: string | null;
   clearEntryScreen: () => void;
   generateToken: () => Promise<void>;
+  getCoupleStatus: () => Promise<pairingApi.CoupleStatus | null>;
   connect: (rawQR: string) => Promise<{ partnerName: string | null; coupleId: string } | null>;
   disconnect: () => Promise<void>;
-  /**
-   * Subscribe to Supabase Realtime events for when the current user's partner
-   * scans their QR code (i.e. when `couple_id` is set on the user's profile).
-   * Returns a cleanup function to unsubscribe.
-   */
-  subscribeToPartnerConnected: (
-    onConnected: (partnerName: string | null, coupleId: string) => void,
-  ) => () => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -59,6 +52,16 @@ export function usePairing(): UsePairingReturn {
     setExpiresAt(result.data.expiresAt);
     setPending(false);
   }, [setPending, setError, setToken, setExpiresAt]);
+
+  /** Read the current couple status without mutating local pairing UI state. */
+  const getCoupleStatus = useCallback(async (): Promise<pairingApi.CoupleStatus | null> => {
+    if (!user?.id) {
+      return null;
+    }
+
+    const result = await pairingApi.fetchCoupleStatus(user.id);
+    return result.ok ? result.data : null;
+  }, [user?.id]);
 
   /**
    * Validate a scanned QR payload client-side, then connect via edge function.
@@ -119,29 +122,5 @@ export function usePairing(): UsePairingReturn {
     setEntryScreen(null);
   }, [setEntryScreen]);
 
-  /**
-   * Subscribe to realtime events on the current user's profile.
-   * When the partner scans the QR code, pairing-connect sets couple_id on
-   * this profile — the subscription fires and we fetch partner info to hand
-   * off to the caller (typically for navigation to ConnectionConfirmed).
-   */
-  const subscribeToPartnerConnected = useCallback(
-    (onConnected: (partnerName: string | null, coupleId: string) => void): (() => void) => {
-      if (!user?.id) return () => undefined;
-
-      return pairingApi.subscribeToPartnerConnected(user.id, (coupleId) => {
-        void (async () => {
-          const statusResult = await pairingApi.fetchCoupleStatus();
-          const partnerName =
-            statusResult.ok && statusResult.data.partner
-              ? statusResult.data.partner.name
-              : null;
-          onConnected(partnerName, coupleId);
-        })();
-      });
-    },
-    [user?.id],
-  );
-
-  return { token, expiresAt, isPending, error, clearEntryScreen, generateToken, connect, disconnect, subscribeToPartnerConnected };
+  return { token, expiresAt, isPending, error, clearEntryScreen, generateToken, getCoupleStatus, connect, disconnect };
 }

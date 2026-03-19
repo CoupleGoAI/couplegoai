@@ -8,6 +8,14 @@ import { useAuthStore } from '@store/authStore';
 import GradientButton from '@components/ui/GradientButton';
 import { colors, spacing, textStyles, radii, shadows } from '@/theme/tokens';
 
+const PAIRING_POLL_INTERVAL_MS = 2000;
+
+function debugPairingScreenLog(message: string, meta?: Record<string, unknown>): void {
+  if (__DEV__) {
+    console.warn(`[GenerateQR] ${message}`, meta ?? {});
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getSecondsRemaining(expiresAt: string | null): number {
@@ -38,10 +46,11 @@ function deriveShortPairCode(token: string | null): string {
 
 export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
   ({ navigation }) => {
-    const { token, expiresAt, isPending, error, generateToken, subscribeToPartnerConnected } = usePairing();
+    const { token, expiresAt, isPending, error, generateToken, getCoupleStatus } = usePairing();
     const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
     const [secondsLeft, setSecondsLeft] = useState<number>(0);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const hasNavigatedRef = useRef(false);
     const shortCode = deriveShortPairCode(token);
 
     const isExpired = secondsLeft === 0 && token !== null;
@@ -66,13 +75,59 @@ export const GenerateQRScreen: React.FC<GenerateQRScreenProps> = React.memo(
       };
     }, [expiresAt]);
 
-    // Subscribe to Supabase Realtime: navigate when partner scans the QR code
     useEffect(() => {
-      const unsubscribe = subscribeToPartnerConnected((partnerName, coupleId) => {
-        navigation.navigate('ConnectionConfirmed', { partnerName, coupleId });
-      });
-      return unsubscribe;
-    }, [subscribeToPartnerConnected, navigation]);
+      if (!token || isExpired) {
+        debugPairingScreenLog('polling:skipped', { hasToken: token !== null, isExpired });
+        return;
+      }
+
+      debugPairingScreenLog('polling:start', { isExpired });
+
+      let isActive = true;
+      let isChecking = false;
+
+      const checkCoupleStatus = async () => {
+        if (isChecking || hasNavigatedRef.current) {
+          return;
+        }
+
+        isChecking = true;
+        const status = await getCoupleStatus();
+        isChecking = false;
+        debugPairingScreenLog('polling:result', {
+          hasStatus: status !== null,
+          isPaired: status?.isPaired ?? false,
+          coupleId: status?.coupleId ?? null,
+          hasPartner: status?.partner != null,
+        });
+
+        if (!isActive || hasNavigatedRef.current || !status?.isPaired || !status.coupleId) {
+          return;
+        }
+
+        hasNavigatedRef.current = true;
+        debugPairingScreenLog('polling:navigate', {
+          coupleId: status.coupleId,
+          partnerName: status.partner?.name ?? null,
+        });
+        navigation.navigate('ConnectionConfirmed', {
+          partnerName: status.partner?.name ?? null,
+          coupleId: status.coupleId,
+        });
+      };
+
+      void checkCoupleStatus();
+
+      const interval = setInterval(() => {
+        void checkCoupleStatus();
+      }, PAIRING_POLL_INTERVAL_MS);
+
+      return () => {
+        isActive = false;
+        debugPairingScreenLog('polling:cleanup');
+        clearInterval(interval);
+      };
+    }, [getCoupleStatus, isExpired, navigation, token]);
 
     const handleRegenerate = () => {
       void generateToken();
