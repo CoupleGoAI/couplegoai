@@ -132,3 +132,31 @@ Refined the pairing UX by enlarging the displayed 6-character alternative code, 
 - MUST-4: connect flow still enforces token validity, expiry, self-pairing guard, and unpaired-user checks before couple creation.
 - MUST-5: ordered persistence flow for couple/profile/token state remains unchanged after lookup enhancements.
 - MUST-7: QR payload still contains only the original token string (manual code is derived display/input only).
+
+## Modification — Realtime notification for QR generator on partner scan
+
+### What changed
+
+Previously only the scanning user (User B) was navigated to `ConnectionConfirmedScreen` after a successful QR scan. The generating user (User A) remained on `GenerateQRScreen` with no indication that pairing had completed. This modification adds Supabase Realtime Postgres Changes subscription so User A is automatically redirected to `ConnectionConfirmedScreen` the moment User B's scan is processed by the `pairing-connect` edge function.
+
+The subscription listens to `UPDATE` events on the `profiles` table filtered by `id=eq.<userId>`. When `pairing-connect` atomically sets `couple_id` on both profiles, User A's subscription fires, partner info is fetched, and navigation to `ConnectionConfirmed` is triggered.
+
+### Files changed
+
+#### Modified
+
+- `src/data/pairingApi.ts` — added `subscribeToPartnerConnected(userId, onCoupleIdReceived)` which creates a Supabase Realtime channel on `profiles` table filtered by the caller's own user ID and returns a cleanup function.
+- `src/hooks/usePairing.ts` — added `subscribeToPartnerConnected` to the hook return type and implementation; it wraps the API subscription, fetches partner info asynchronously on notification, and calls back with `(partnerName, coupleId)`.
+- `src/screens/main/GenerateQRScreen.tsx` — added a `useEffect` that subscribes to `subscribeToPartnerConnected` on mount, navigates to `ConnectionConfirmed` on event, and cleans up the channel on unmount.
+
+#### New
+
+- `supabase/migrations/20260317181209_profiles_realtime.sql` — sets `REPLICA IDENTITY FULL` on `profiles` so all column values are available in Realtime change payloads; conditionally adds `profiles` to `supabase_realtime` publication when the publication uses explicit table listing (no-op on Supabase Cloud where it is FOR ALL TABLES).
+
+### Security re-check
+
+- MUST-1: no change to edge functions; JWT verification via Auth REST API untouched.
+- MUST-2: the Realtime subscription filter uses the user's own ID (from authenticated authStore state, never from a client-supplied argument). The `onCoupleIdReceived` callback receives only `couple_id` from the change payload — not arbitrary user input.
+- MUST-4 / MUST-5: all pairing validation and atomicity still enforced server-side in `pairing-connect`; the Realtime event is a read-only notification of a DB change, not a trigger for privileged action.
+- MUST-7: no PII is transmitted through the Realtime channel — only `couple_id` (a UUID) flows from the payload.
+- MUST-NOT-4: the subscription callback does not log tokens, payloads, or full API responses.

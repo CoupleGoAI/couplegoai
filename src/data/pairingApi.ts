@@ -48,6 +48,12 @@ export interface CoupleStatus {
 
 type PairingResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
+function debugPairingLog(message: string, meta?: Record<string, unknown>): void {
+  if (__DEV__) {
+    console.warn(`[pairingApi] ${message}`, meta ?? {});
+  }
+}
+
 // ─── HTTP status → user-facing message ────────────────────────────────────────
 
 function mapHttpError(status: number, serverMsg?: string): string {
@@ -132,20 +138,23 @@ export async function disconnect(): Promise<PairingResult<PairingDisconnectRespo
  * Fetch couple status via direct DB query (read-only — no edge function needed).
  * Returns partner info from the profiles table via RLS-enforced join.
  */
-export async function fetchCoupleStatus(): Promise<PairingResult<CoupleStatus>> {
+export async function fetchCoupleStatus(userId: string): Promise<PairingResult<CoupleStatus>> {
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('couple_id')
-      .single();
+    debugPairingLog('fetchCoupleStatus:start', { userId });
+
+    const { data: coupleIdData, error: profileError } = await supabase
+      .rpc('get_my_couple_id');
 
     if (profileError) {
+      debugPairingLog('fetchCoupleStatus:profile_error', { userId, message: profileError.message });
       return { ok: false, error: 'Failed to read profile.' };
     }
 
-    const coupleId = (profile as { couple_id: string | null } | null)?.couple_id ?? null;
+    const coupleId = typeof coupleIdData === 'string' ? coupleIdData : null;
+    debugPairingLog('fetchCoupleStatus:profile_ok', { userId, hasCoupleId: coupleId !== null, coupleId });
 
     if (!coupleId) {
+      debugPairingLog('fetchCoupleStatus:unpaired', { userId });
       return { ok: true, data: { isPaired: false, coupleId: null, partner: null } };
     }
 
@@ -158,11 +167,13 @@ export async function fetchCoupleStatus(): Promise<PairingResult<CoupleStatus>> 
       .single();
 
     if (coupleError || !couple) {
+      debugPairingLog('fetchCoupleStatus:couple_missing', {
+        userId,
+        coupleId,
+        message: coupleError?.message ?? null,
+      });
       return { ok: true, data: { isPaired: false, coupleId: null, partner: null } };
     }
-
-    const { data: authData } = await supabase.auth.getUser();
-    const userId = authData.user?.id;
 
     const c = couple as {
       id: string;
@@ -172,12 +183,21 @@ export async function fetchCoupleStatus(): Promise<PairingResult<CoupleStatus>> 
     };
 
     const partnerId = c.partner1_id === userId ? c.partner2_id : c.partner1_id;
+    debugPairingLog('fetchCoupleStatus:couple_ok', { userId, coupleId, partnerId });
 
-    const { data: partnerProfile } = await supabase
+    const { data: partnerProfile, error: partnerError } = await supabase
       .from('profiles')
       .select('id, name, avatar_url')
       .eq('id', partnerId)
-      .single();
+      .maybeSingle();
+
+    if (partnerError) {
+      debugPairingLog('fetchCoupleStatus:partner_error', {
+        userId,
+        partnerId,
+        message: partnerError.message,
+      });
+    }
 
     const pp = partnerProfile as { id: string; name: string | null; avatar_url: string | null } | null;
 
@@ -194,6 +214,7 @@ export async function fetchCoupleStatus(): Promise<PairingResult<CoupleStatus>> 
       },
     };
   } catch {
+    debugPairingLog('fetchCoupleStatus:network_error', { userId });
     return { ok: false, error: 'Network error. Please check your connection.' };
   }
 }
