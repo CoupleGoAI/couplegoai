@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -29,9 +29,16 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     const [emailFocused, setEmailFocused] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
 
+    const passwordRef = useRef<TextInput>(null);
+
     const { signIn } = useAuth();
     const isLoading = useAuthStore((s) => s.isLoading);
     const error = useAuthStore((s) => s.error);
+
+    const toggleShowPassword = useCallback(() => {
+        setShowPassword((prev) => !prev);
+        requestAnimationFrame(() => passwordRef.current?.focus());
+    }, []);
 
     const handleLogin = async () => {
         setSubmitted(true);
@@ -116,6 +123,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                                         color={passwordFocused ? colors.primary : colors.gray}
                                     />
                                     <TextInput
+                                        ref={passwordRef}
                                         value={password}
                                         onChangeText={(text) => {
                                             setPassword(text);
@@ -138,7 +146,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                                         style={styles.input}
                                     />
                                     <TouchableOpacity
-                                        onPress={() => setShowPassword((prev) => !prev)}
+                                        onPress={toggleShowPassword}
                                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                     >
                                         <Ionicons

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +37,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function HomeScreen(): React.ReactElement {
     const navigation = useNavigation<RootNavProp>();
     const name = useAuthStore((s) => s.user?.name ?? null);
+    const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
+    const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
     const firstName = name?.split(' ')[0] ?? null;
 
     const chatScale = useSharedValue(1);
@@ -101,6 +103,23 @@ export function HomeScreen(): React.ReactElement {
                         </LinearGradient>
                     </AnimatedPressable>
                 </Animated.View>
+
+                {/* Pair with partner — only when not yet connected */}
+                {coupleId === null && (
+                    <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+                        <TouchableOpacity
+                            style={styles.pairPill}
+                            activeOpacity={0.82}
+                            onPress={() => setPairingSkipped(false)}
+                        >
+                            <View style={styles.pairIconWrap}>
+                                <Ionicons name="heart" size={16} color={colors.primary} />
+                            </View>
+                            <Text style={styles.pairLabel}>Pair with your partner</Text>
+                            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
 
                 {/* Profile pill */}
                 <Animated.View entering={FadeInDown.delay(240).duration(400)}>
@@ -219,5 +238,35 @@ const styles = StyleSheet.create({
         color: colors.foreground,
     },
     profileChevron: { marginLeft: 'auto' },
+    pairPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.muted,
+        borderRadius: radii.radiusFull,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        marginTop: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.primaryLight,
+        gap: spacing.md,
+        ...shadows.sm,
+    },
+    pairIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: radii.radiusFull,
+        backgroundColor: colors.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.primaryLight,
+    },
+    pairLabel: {
+        flex: 1,
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.base,
+        fontWeight: fontWeight.medium,
+        color: colors.primary,
+    },
     bottomPad: { height: spacing['2xl'] },
 });

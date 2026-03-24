@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -37,9 +37,24 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [confirmFocused, setConfirmFocused] = useState(false);
 
+    const passwordRef = useRef<TextInput>(null);
+    const confirmRef = useRef<TextInput>(null);
+
     const { signUp } = useAuth();
     const isLoading = useAuthStore((s) => s.isLoading);
     const error = useAuthStore((s) => s.error);
+
+    // When secureTextEntry flips, iOS remounts the native UITextField and drops
+    // focus, dismissing the keyboard. Re-focus after the render cycle completes.
+    const toggleShowPassword = useCallback(() => {
+        setShowPassword((prev) => !prev);
+        requestAnimationFrame(() => passwordRef.current?.focus());
+    }, []);
+
+    const toggleShowConfirm = useCallback(() => {
+        setShowConfirm((prev) => !prev);
+        requestAnimationFrame(() => confirmRef.current?.focus());
+    }, []);
 
     const handleRegister = async () => {
         setSubmitted(true);
@@ -55,9 +70,13 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
         if (!emailResult.valid || !passwordResult.valid || !confirmResult.valid) return;
 
         await signUp(email.trim(), password);
-        // SR-15: Clear passwords from memory after submission
+        // SR-15: Clear passwords from memory after submission.
+        // State clear wipes the value used for validation/submission.
+        // .clear() wipes the native UITextField (no value prop to do it automatically).
         setPassword('');
         setConfirmPassword('');
+        passwordRef.current?.clear();
+        confirmRef.current?.clear();
     };
 
     return (
@@ -132,7 +151,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         color={passwordFocused ? colors.primary : colors.gray}
                                     />
                                     <TextInput
-                                        value={password}
+                                        ref={passwordRef}
                                         onChangeText={(text) => {
                                             setPassword(text);
                                             if (submitted) {
@@ -153,7 +172,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         style={styles.input}
                                     />
                                     <TouchableOpacity
-                                        onPress={() => setShowPassword((prev) => !prev)}
+                                        onPress={toggleShowPassword}
                                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                     >
                                         <Ionicons
@@ -177,7 +196,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         color={confirmFocused ? colors.primary : colors.gray}
                                     />
                                     <TextInput
-                                        value={confirmPassword}
+                                        ref={confirmRef}
                                         onChangeText={(text) => {
                                             setConfirmPassword(text);
                                             if (submitted) {
@@ -199,7 +218,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                         style={styles.input}
                                     />
                                     <TouchableOpacity
-                                        onPress={() => setShowConfirm((prev) => !prev)}
+                                        onPress={toggleShowConfirm}
                                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                     >
                                         <Ionicons

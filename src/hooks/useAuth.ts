@@ -44,9 +44,12 @@ export function useAuth(): {
                 return;
             }
 
-            if (result.error.code === 'PROFILE_NOT_FOUND') {
-                // Profile row deleted — clear the Supabase session from SecureStore
-                // and reset all stores so RootNavigator routes to the auth screen.
+            if (
+                result.error.code === 'PROFILE_NOT_FOUND' ||
+                result.error.code === 'SESSION_EXPIRED'
+            ) {
+                // Profile deleted or session invalid — clear SecureStore and all
+                // stores so RootNavigator routes to the auth screen.
                 await authData.signOut();
                 resetAuth();
                 resetOnboarding();
