@@ -28,30 +28,47 @@ export function useAuth(): {
      * Hydrate user from Supabase auth + profiles table.
      * Called on session restore and after sign-in/sign-up.
      *
-     * IMPORTANT: always calls setUser so isAuthenticated becomes true.
-     * If fetchProfile fails (row missing, network, RLS), a minimal
-     * user object is set as a fallback — the profile can be retried later.
+     * - Profile found      → set user, proceed normally
+     * - PROFILE_NOT_FOUND  → profile row was deleted; force sign-out so the
+     *                         session is cleared from SecureStore and the auth
+     *                         screen is shown instead of a broken app state
+     * - Network/other error → use a minimal fallback so the user is not
+     *                         incorrectly signed out due to a transient error
      */
     const hydrateUser = useCallback(
         async (userId: string, email?: string): Promise<void> => {
             const result = await authData.fetchProfile(userId);
+
             if (result.ok) {
                 setUser(result.data);
-            } else {
-                // Fallback: guarantee isAuthenticated = true
-                setUser({
-                    id: userId,
-                    email: email ?? '',
-                    name: null,
-                    avatarUrl: null,
-                    onboardingCompleted: false,
-                    coupleSetupCompleted: false,
-                    coupleId: null,
-                    createdAt: new Date().toISOString(),
-                });
+                return;
             }
+
+            if (result.error.code === 'PROFILE_NOT_FOUND') {
+                // Profile row deleted — clear the Supabase session from SecureStore
+                // and reset all stores so RootNavigator routes to the auth screen.
+                await authData.signOut();
+                resetAuth();
+                resetOnboarding();
+                resetPairing();
+                resetCoupleSetup();
+                return;
+            }
+
+            // Transient error (network, RLS) — keep a minimal user so the
+            // user is not logged out on a bad network day.
+            setUser({
+                id: userId,
+                email: email ?? '',
+                name: null,
+                avatarUrl: null,
+                onboardingCompleted: false,
+                coupleSetupCompleted: false,
+                coupleId: null,
+                createdAt: new Date().toISOString(),
+            });
         },
-        [setUser],
+        [setUser, resetAuth, resetOnboarding, resetPairing, resetCoupleSetup],
     );
 
     /**

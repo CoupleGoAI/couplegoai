@@ -153,16 +153,23 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
 
     const baseUser = mapUser(authData.user);
 
-    // Then hydrate from profiles table
+    // Then hydrate from profiles table.
+    // .maybeSingle() returns data=null/error=null when 0 rows (not an error),
+    // vs .single() which throws PGRST116 for missing rows.
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('name, avatar_url, onboarding_completed, couple_id, dating_start_date, help_focus')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      // Profile row might not exist yet (just registered) — return base user
-      return { ok: true, data: baseUser };
+    if (profileError) {
+      // Real DB / network error — caller should use a fallback, not sign out
+      return { ok: false, error: { code: 'NETWORK_ERROR', message: 'Network error. Please check your connection.' } };
+    }
+
+    if (!profile) {
+      // Row was explicitly deleted — caller must force sign-out
+      return { ok: false, error: { code: 'PROFILE_NOT_FOUND', message: 'Profile not found. Please sign in again.' } };
     }
 
     return {

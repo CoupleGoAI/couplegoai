@@ -37,6 +37,7 @@ export type AuthError =
     | { code: 'NETWORK_ERROR'; message: string }
     | { code: 'SESSION_EXPIRED'; message: string }
     | { code: 'EMAIL_CONFIRMATION_REQUIRED'; message: string }
+    | { code: 'PROFILE_NOT_FOUND'; message: string }
     | { code: 'UNKNOWN'; message: string };
 
 /** Validation result for form fields */

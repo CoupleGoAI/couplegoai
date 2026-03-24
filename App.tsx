@@ -1,11 +1,9 @@
+import './src/setup/suppressWarnings';
 import 'react-native-url-polyfill/auto';
 import 'react-native-gesture-handler';
 import './global.css';
 import React from 'react';
-import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native';
