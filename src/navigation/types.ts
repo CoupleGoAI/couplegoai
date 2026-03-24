@@ -15,6 +15,7 @@ export type RootStackParamList = {
     ConnectionConfirmed: { partnerName: string | null; coupleId: string };
     CoupleSetup: undefined;
     Home: undefined;
+    AiChat: undefined;
 };
 
 // Navigation prop helpers
@@ -30,6 +31,9 @@ export type OnboardingProfileScreenProps = NativeStackScreenProps<RootStackParam
 
 // Couple setup screen props
 export type CoupleSetupScreenProps = NativeStackScreenProps<RootStackParamList, 'CoupleSetup'>;
+
+// AI chat screen props
+export type AiChatScreenProps = NativeStackScreenProps<RootStackParamList, 'AiChat'>;
 
 // Pairing screen props
 export type GenerateQRScreenProps = NativeStackScreenProps<RootStackParamList, 'GenerateQR'>;

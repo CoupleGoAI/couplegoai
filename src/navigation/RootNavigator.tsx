@@ -13,6 +13,7 @@ import { ScanQRScreen } from '@screens/main/ScanQRScreen';
 import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScreen';
 import { CoupleSetupScreen } from '@screens/main/CoupleSetupScreen';
 import { HomeScreen } from '@screens/main/HomeScreen';
+import { AiChatScreen } from '@screens/main/AiChatScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -76,7 +77,14 @@ export default function RootNavigator() {
                 ) : coupleId !== null && !coupleSetupCompleted ? (
                     <Stack.Screen name="CoupleSetup" component={CoupleSetupScreen} />
                 ) : (
-                    <Stack.Screen name="Home" component={HomeScreen} />
+                    <>
+                        <Stack.Screen name="Home" component={HomeScreen} />
+                        <Stack.Screen
+                            name="AiChat"
+                            component={AiChatScreen}
+                            options={{ animation: 'slide_from_bottom' }}
+                        />
+                    </>
                 )}
             </Stack.Navigator>
         </NavigationContainer>

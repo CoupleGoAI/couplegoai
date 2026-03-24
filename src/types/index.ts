@@ -44,3 +44,21 @@ export interface ValidationResult {
     valid: boolean;
     error: string | null;
 }
+
+// ─── AI Chat ──────────────────────────────────────────────────────────────────
+
+/** Chat mode: solo conversation with AI, or couple mode (coming soon) */
+export type ChatMode = 'single' | 'couple';
+
+/** A single message in the AI chat conversation */
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    text: string;
+    timestamp: number;
+}
+
+/** Result of calling the AI sendMessage function */
+export type ChatResult =
+    | { ok: true; reply: string }
+    | { ok: false; error: string };
