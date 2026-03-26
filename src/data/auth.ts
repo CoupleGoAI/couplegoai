@@ -29,6 +29,9 @@ function mapUser(supabaseUser: {
     email: supabaseUser.email ?? '',
     name: (supabaseUser.user_metadata?.['name'] as string) ?? null,
     avatarUrl: (supabaseUser.user_metadata?.['avatar_url'] as string) ?? null,
+    birthDate: null,
+    helpFocus: null,
+    datingStartDate: null,
     onboardingCompleted: false,
     coupleSetupCompleted: false,
     coupleId: null,
@@ -158,7 +161,7 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
     // vs .single() which throws PGRST116 for missing rows.
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('name, avatar_url, onboarding_completed, couple_id, dating_start_date, help_focus')
+      .select('name, avatar_url, birth_date, onboarding_completed, couple_id, dating_start_date, help_focus')
       .eq('id', userId)
       .maybeSingle();
 
@@ -178,6 +181,9 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
         ...baseUser,
         name: (profile.name as string) ?? baseUser.name,
         avatarUrl: (profile.avatar_url as string) ?? baseUser.avatarUrl,
+        birthDate: (profile.birth_date as string) ?? null,
+        helpFocus: (profile.help_focus as string) ?? null,
+        datingStartDate: (profile.dating_start_date as string) ?? null,
         onboardingCompleted: (profile.onboarding_completed as boolean) ?? false,
         coupleSetupCompleted:
           (profile.dating_start_date as string | null) !== null &&

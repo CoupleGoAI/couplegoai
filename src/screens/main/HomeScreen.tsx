@@ -46,6 +46,15 @@ export function HomeScreen(): React.ReactElement {
         transform: [{ scale: chatScale.value }],
     }));
 
+    const nameOpacity = useSharedValue(0.7);
+    const nameAnimStyle = useAnimatedStyle(() => ({
+        opacity: nameOpacity.value,
+    }));
+
+    React.useEffect(() => {
+        nameOpacity.value = withTiming(1, { duration: 800 });
+    }, [nameOpacity]);
+
     return (
         <SafeAreaView style={styles.safe}>
             <LinearGradient
@@ -61,7 +70,9 @@ export function HomeScreen(): React.ReactElement {
                     <View>
                         <Text style={styles.greetingLabel}>{timeGreeting()}</Text>
                         {firstName !== null && (
-                            <Text style={styles.greetingName}>{firstName}</Text>
+                            <Animated.Text style={[styles.greetingName, nameAnimStyle]}>
+                                {firstName}
+                            </Animated.Text>
                         )}
                     </View>
                 </Animated.View>
@@ -104,6 +115,19 @@ export function HomeScreen(): React.ReactElement {
                     </AnimatedPressable>
                 </Animated.View>
 
+                {/* Connected pill — shown when paired */}
+                {coupleId !== null && (
+                    <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+                        <View style={styles.connectedPill}>
+                            <View style={styles.connectedIconWrap}>
+                                <Ionicons name="heart" size={16} color={colors.accent} />
+                            </View>
+                            <Text style={styles.connectedLabel}>Connected</Text>
+                            <View style={styles.connectedDot} />
+                        </View>
+                    </Animated.View>
+                )}
+
                 {/* Pair with partner — only when not yet connected */}
                 {coupleId === null && (
                     <Animated.View entering={FadeInDown.delay(220).duration(400)}>
@@ -126,7 +150,7 @@ export function HomeScreen(): React.ReactElement {
                     <TouchableOpacity
                         style={styles.profilePill}
                         activeOpacity={0.82}
-                        onPress={() => { /* TODO: navigate to Profile screen */ }}
+                        onPress={() => navigation.navigate('Profile')}
                     >
                         <View style={styles.profileAvatar}>
                             <Text style={styles.profileInitial}>
@@ -267,6 +291,41 @@ const styles = StyleSheet.create({
         fontSize: fontSize.base,
         fontWeight: fontWeight.medium,
         color: colors.primary,
+    },
+    connectedPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.accentSoft,
+        borderRadius: radii.radiusFull,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        marginTop: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.accentLight,
+        gap: spacing.md,
+    },
+    connectedIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: radii.radiusFull,
+        backgroundColor: colors.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.accentLight,
+    },
+    connectedLabel: {
+        flex: 1,
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.base,
+        fontWeight: fontWeight.medium,
+        color: colors.accent,
+    },
+    connectedDot: {
+        width: 8,
+        height: 8,
+        borderRadius: radii.radiusFull,
+        backgroundColor: colors.success,
     },
     bottomPad: { height: spacing['2xl'] },
 });

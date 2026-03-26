@@ -16,6 +16,8 @@ export type RootStackParamList = {
     CoupleSetup: undefined;
     Home: undefined;
     AiChat: undefined;
+    Profile: undefined;
+    DisconnectConfirm: undefined;
 };
 
 // Navigation prop helpers
@@ -39,3 +41,7 @@ export type AiChatScreenProps = NativeStackScreenProps<RootStackParamList, 'AiCh
 export type GenerateQRScreenProps = NativeStackScreenProps<RootStackParamList, 'GenerateQR'>;
 export type ScanQRScreenProps = NativeStackScreenProps<RootStackParamList, 'ScanQR'>;
 export type ConnectionConfirmedScreenProps = NativeStackScreenProps<RootStackParamList, 'ConnectionConfirmed'>;
+
+// Profile & Disconnect screen props
+export type ProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+export type DisconnectConfirmScreenProps = NativeStackScreenProps<RootStackParamList, 'DisconnectConfirm'>;

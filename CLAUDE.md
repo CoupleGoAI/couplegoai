@@ -43,7 +43,7 @@ Before writing any code, load the relevant skill file:
 
 - `.claude/skills/supabase.md` — all Supabase, edge functions, JWT, MCP schema inspection
 - `.claude/skills/react-native.md` — Expo/RN conventions, Zustand, Reanimated, styling
-- `.claude/skills/agent-workflow.md` — subagents, Ruflo pipeline, output format
+- `.claude/skills/agent-workflow.md` — command selection, native subagent handoffs, output format
 
 ---
 
@@ -57,20 +57,19 @@ Choose the right command for the job:
 
 | Command             | When to use                                                                  |
 | ------------------- | ---------------------------------------------------------------------------- |
-| `/implement-swarm`  | New feature — full hierarchical 3-agent swarm (architect → coder → reviewer) |
-| `/modify-swarm`     | Existing feature change — same swarm, minimal-diff scope                     |
-| `/implement-claude` | New feature, small/medium — Claude directly, no swarm overhead               |
-| `/modify-claude`    | Small targeted change — Claude directly, fastest option                      |
+| `/implement`        | New feature work — direct by default, native subagents when scope justifies it |
+| `/modify-small`     | Small targeted change — Claude directly, fastest minimal-diff path             |
+| `/modify-big`       | Large or cross-cutting change — Claude-native multiagent workflow with explicit handoffs |
 
-### Fallback: native subagents (when commands are unavailable)
+### Native subagents
 
 | Agent         | Role                                                                                  |
 | ------------- | ------------------------------------------------------------------------------------- |
-| `planner`     | Produces `plan.md` + `threat-model.md`. Does not write production code.               |
-| `implementer` | Builds the feature strictly per `plan.md`, satisfies every MUST in `threat-model.md`. |
-| `modifier`    | Makes targeted changes. Never touches unrelated code.                                 |
+| `planner`     | Produces a concise execution brief: scope, owned files, risks, validation plan. Does not write production code. |
+| `implementer` | Builds new feature code or new modules from a structured brief, then verifies the result. |
+| `modifier`    | Makes scoped edits to existing code from a structured brief. Never touches unrelated code. |
 
-Subagents live in `.claude/agents/`. Invoke them via the Agent tool.
+Subagents live in `.claude/agents/`. Use them through Claude's native Agent/Task tooling only.
 
 ---
 

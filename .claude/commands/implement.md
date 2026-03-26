@@ -1,9 +1,9 @@
 ---
-name: implement-claude
-description: Build a new CoupleGoAI feature directly with Claude — no swarm. Best for small to medium features.
+name: implement
+description: Build a CoupleGoAI feature with Claude. Stay direct for focused work; use native subagents when the feature spans multiple layers or needs parallel exploration.
 ---
 
-# /implement-claude — Direct Feature Implementation
+# /implement — Native Feature Implementation
 
 **Feature:** $ARGUMENTS
 
@@ -11,13 +11,14 @@ description: Build a new CoupleGoAI feature directly with Claude — no swarm. B
 
 ## Step 1 — Load context
 
-Read these before writing a single line of code:
+Read these before writing code:
 
 1. `CLAUDE.md` — stack, architecture, constraints
 2. `.claude/skills/supabase.md` — all Supabase rules
 3. `.claude/skills/react-native.md` — RN/Expo rules
-4. `docs/features/` — any existing spec or plan for this feature
-5. Relevant existing source files — use Glob and Grep to find analogous screens, hooks, stores, and data files in `src/`
+4. `.claude/skills/agent-workflow.md` — native handoff rules
+5. Relevant feature docs if they exist
+6. Relevant existing source files — use Glob and Grep to find analogous screens, hooks, stores, domain modules, and data files in `src/`
 
 Do not design anything until you have read what already exists.
 
@@ -37,20 +38,43 @@ Never assume a column exists.
 
 ---
 
-## Step 3 — Plan (state before coding)
+## Step 3 — Choose the execution mode
 
-Write out concisely:
+Stay in the main Claude session when the work is focused and can be implemented safely without delegation.
 
-- Files to create and modify (by layer: types → domain → data → store → hooks → UI → navigation → edge functions)
-- Key TypeScript interfaces
-- Data flow for each user action (UI → hook → domain → data → response, including error paths)
-- Security considerations: trust boundaries, sensitive data, MUST requirements
+Use Claude's native subagents when the feature:
+
+- spans multiple layers or subsystems
+- benefits from parallel exploration or implementation
+- needs a planner handoff before editing starts
+
+If you delegate, first write a shared brief in the conversation that includes:
+
+- objective and desired end state
+- relevant files and symbols already inspected
+- scope, non-goals, and invariants
+- security constraints and validation plan
+- explicit file ownership for each subagent
+
+Use only native subagents from `.claude/agents/`. Do not use any external orchestration layer.
+
+---
+
+## Step 4 — Plan before coding
+
+State concisely:
+
+- files to create and modify by layer
+- key TypeScript interfaces
+- data flow for each user action
+- security considerations and trust boundaries
+- whether work stays direct or uses subagents
 
 Keep it short. This is for alignment, not documentation.
 
 ---
 
-## Step 4 — Implement
+## Step 5 — Implement
 
 Follow all rules from `CLAUDE.md` and the skill files. Non-negotiable:
 
@@ -62,7 +86,7 @@ Follow all rules from `CLAUDE.md` and the skill files. Non-negotiable:
 - Never `supabase.functions.invoke()` — use plain `fetch` with explicit `Authorization` + `apikey` headers
 - Edge functions: `verify_jwt = false` in `supabase/config.toml`
 - Auth in edge functions: fetch `/auth/v1/user` directly, never `client.auth.getUser()`
-- `apikey` header must use `EXPO_PUBLIC_SUPABASE_ANON_KEY` (`eyJhbGci...`), not publishable key
+- `apikey` header must use `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - Service role client only after identity verified, never exposed to client
 
 **TypeScript**
@@ -84,11 +108,11 @@ Follow all rules from `CLAUDE.md` and the skill files. Non-negotiable:
 - Generic error messages only — no stack traces, internal IDs, or token fragments.
 
 **Tests**
-- Unit tests for all domain logic in `src/domain/<feature>/__tests__/`
+- Add or update tests for domain logic and other high-risk behavior you changed.
 
 ---
 
-## Step 5 — Verify
+## Step 6 — Verify
 
 ```bash
 npx tsc --noEmit
@@ -99,10 +123,10 @@ Fix all errors before reporting done.
 
 ---
 
-## Step 6 — Report
+## Step 7 — Report
 
 1. What was built (one sentence)
 2. Files created / modified (by layer)
 3. Security notes (what was validated)
-4. Tests added
+4. Tests added or updated
 5. Manual test steps

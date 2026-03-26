@@ -14,6 +14,8 @@ import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScre
 import { CoupleSetupScreen } from '@screens/main/CoupleSetupScreen';
 import { HomeScreen } from '@screens/main/HomeScreen';
 import { AiChatScreen } from '@screens/main/AiChatScreen';
+import ProfileScreen from '@screens/main/ProfileScreen';
+import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -83,6 +85,16 @@ export default function RootNavigator() {
                             name="AiChat"
                             component={AiChatScreen}
                             options={{ animation: 'slide_from_bottom' }}
+                        />
+                        <Stack.Screen
+                            name="Profile"
+                            component={ProfileScreen}
+                            options={{ animation: 'slide_from_right' }}
+                        />
+                        <Stack.Screen
+                            name="DisconnectConfirm"
+                            component={DisconnectConfirmScreen}
+                            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
                         />
                     </>
                 )}

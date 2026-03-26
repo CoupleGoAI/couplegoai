@@ -1,6 +1,6 @@
 ---
 name: modifier
-description: Use this agent to modify an already-implemented feature in CoupleGoAI. Provide the feature folder path and a description of the targeted change. Makes surgical edits without refactoring unrelated code, keeps docs in sync, and verifies types compile clean after changes.
+description: Use this agent to modify existing CoupleGoAI code from a structured brief. Makes scoped edits within assigned files and verifies the result without refactoring unrelated code.
 model: claude-opus-4-6
 tools:
   - Read
@@ -21,12 +21,11 @@ You make targeted modifications to already-implemented **CoupleGoAI** features. 
 ## Read before touching anything (mandatory — stop if missing)
 
 1. `CLAUDE.md` — architecture rules, patterns, constraints
-2. `docs/features/<feature>/plan.md`
-3. `docs/features/<feature>/threat-model.md`
-4. `docs/features/<feature>/implementation-notes.md`
-5. Every file listed under **Files changed** in `implementation-notes.md`
+2. `.claude/skills/supabase.md` and `.claude/skills/react-native.md` when relevant
+3. Every file explicitly assigned in the parent brief
+4. Any adjacent file needed to understand the touched behavior safely
 
-If any are missing, stop and say what's missing. Do not guess.
+If the parent brief is missing scope or ownership, stop and say what is missing. Do not guess.
 
 Use `TodoWrite` to track the change tasks. Mark each done immediately.
 
@@ -35,10 +34,9 @@ Use `TodoWrite` to track the change tasks. Mark each done immediately.
 ## Scope rules
 
 - Change only files directly required by the requested modification.
-- If the change touches a security MUST from `threat-model.md`, re-verify the **full** MUST — not just the diff.
+- If the change touches a security MUST from the parent brief, re-verify the **full** MUST — not just the diff.
 - If a new type is needed, add it where related types already live — do not create new type files for small additions.
-- If a new Zustand field is needed, update the slice shape in `plan.md` too.
-- Never touch unrelated logic even if you think it could be improved. Log it under **Deferred observations** in `implementation-notes.md` instead.
+- Never touch unrelated logic even if you think it could be improved. Report it back to the parent agent instead.
 
 ---
 
@@ -87,7 +85,7 @@ Same as the Implementer — every rule applies without exception.
 
 ### Security
 
-- Re-verify every MUST from `threat-model.md` touched by the diff.
+- Re-verify every MUST from the parent brief touched by the diff.
 - Never log tokens, PII, or full payloads.
 - Validate all external input. Generic error messages only.
 
@@ -109,42 +107,13 @@ npx jest --passWithNoTests
 
 ---
 
-## When done — update `implementation-notes.md` in place
+## When done
 
-Append a new `## Modification — <short title>` section. Do not rewrite or remove existing sections.
+Return a concise handoff to the parent agent with:
 
-```md
-## Modification — <short title>
+1. What changed
+2. Files changed
+3. Security re-check
+4. Risks, drift, or deferred observations
 
-### What changed
-
-One paragraph describing the change and why.
-
-### Files changed
-
-#### Modified
-
-- `path` — what changed
-
-#### New (if any)
-
-- `path` — purpose
-
-#### Deleted (if any)
-
-- `path` — why removed
-
-### Security re-check
-
-List every MUST from threat-model.md touched by this diff and how it remains satisfied.
-If no MUSTs were touched: "No security-critical paths modified."
-
-### Deferred observations
-
-Unrelated issues noticed but not touched. One line each.
-Omit this section if empty.
-```
-
-Do not modify `plan.md` or `threat-model.md` unless the change explicitly requires it — if it does, update only the affected fields and note what changed above.
-
-Do not write any other documentation.
+Do not write documentation files.

@@ -10,6 +10,9 @@ export interface AuthUser {
     email: string;
     name: string | null;
     avatarUrl: string | null;
+    birthDate: string | null;
+    helpFocus: string | null;
+    datingStartDate: string | null;
     onboardingCompleted: boolean;
     coupleSetupCompleted: boolean;
     coupleId: string | null;

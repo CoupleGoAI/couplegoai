@@ -39,7 +39,8 @@
           "cameraPermission": "Allow CoupleGoAI to access your camera to scan your partner's QR code."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "couplegoai",
     "newArchEnabled": true
