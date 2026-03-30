@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +12,8 @@ import Animated, {
     withSpring,
 } from 'react-native-reanimated';
 import { useAuthStore } from '@store/authStore';
+import { useAuth } from '@hooks/useAuth';
+import { DevMenu } from '@components/ui/DevMenu';
 import type { RootNavProp } from '@navigation/types';
 import {
     colors,
@@ -40,6 +42,13 @@ export function HomeScreen(): React.ReactElement {
     const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
     const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
     const firstName = name?.split(' ')[0] ?? null;
+    const { signOut } = useAuth();
+    const [isDevMenuVisible, setIsDevMenuVisible] = useState(false);
+
+    const handleDevSignOut = useCallback(async () => {
+        setIsDevMenuVisible(false);
+        await signOut();
+    }, [signOut]);
 
     const chatScale = useSharedValue(1);
     const chatAnimStyle = useAnimatedStyle(() => ({
@@ -70,9 +79,14 @@ export function HomeScreen(): React.ReactElement {
                     <View>
                         <Text style={styles.greetingLabel}>{timeGreeting()}</Text>
                         {firstName !== null && (
-                            <Animated.Text style={[styles.greetingName, nameAnimStyle]}>
-                                {firstName}
-                            </Animated.Text>
+                            <TouchableOpacity
+                                activeOpacity={__DEV__ ? 0.7 : 1}
+                                onPress={() => { if (__DEV__) setIsDevMenuVisible(true); }}
+                            >
+                                <Animated.Text style={[styles.greetingName, nameAnimStyle]}>
+                                    {firstName}
+                                </Animated.Text>
+                            </TouchableOpacity>
                         )}
                     </View>
                 </Animated.View>
@@ -164,6 +178,12 @@ export function HomeScreen(): React.ReactElement {
 
                 <View style={styles.bottomPad} />
             </View>
+
+            <DevMenu
+                visible={isDevMenuVisible}
+                onClose={() => setIsDevMenuVisible(false)}
+                onSignOut={() => { void handleDevSignOut(); }}
+            />
         </SafeAreaView>
     );
 }
