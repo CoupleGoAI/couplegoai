@@ -25,7 +25,22 @@ import {
 
 // ─── Emoji Loop Strip ─────────────────────────────────────────────────────────
 
-const EMOJI_POOL = ['💕', '✨', '🌸', '💫', '🫶', '💌', '🩷', '🌷'] as const;
+const EMOJI_POOL = [
+    // Love / affection
+    '💕', '💖', '💗', '💘', '💝', '💞', '💓', '💟',
+    '🩷', '❤️', '🧡', '💛',
+    '🫶', '🤗', '🥰',
+
+    // Cozy / home / warmth
+    '🏠', '🏡', '🛋️', '🪴',
+    '🕯️', '🔥',
+
+    // Nature / soft calm
+    '🌸', '🌷', '🌹', '🌺', '🍀', '🕊️',
+
+    // Light / joy
+    '✨', '💫', '🌟', '⭐', '☀️', '🌈'
+] as const;
 
 function pickEmojis(messageId: string): string[] {
     const seed = messageId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
@@ -113,10 +128,10 @@ EmojiLoopStrip.displayName = 'EmojiLoopStrip';
 // ─── Typewriter Typing Effect ─────────────────────────────────────────────────
 
 const PUNCTUATION_PAUSE: Readonly<Record<string, number>> = {
-    '.': 220,
-    '!': 220,
-    '?': 220,
-    ',': 90,
+    '.': 120,
+    '!': 120,
+    '?': 120,
+    ',': 50,
 };
 
 // ─── Assistant Bubble with Typewriter + Glow ─────────────────────────────────
@@ -163,7 +178,7 @@ const AssistantBubble: React.FC<AssistantBubbleProps> = React.memo(
                 setDisplayed(next);
                 const lastChar = next[next.length - 1] ?? '';
                 const pause = PUNCTUATION_PAUSE[lastChar] ?? 0;
-                nextFireRef.current = ts + 25 + Math.random() * 25 + pause;
+                nextFireRef.current = ts + 10 + Math.random() * 10 + pause * 0.4;
                 rafRef.current = requestAnimationFrame(tick);
             }
 
