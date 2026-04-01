@@ -161,7 +161,7 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
     // vs .single() which throws PGRST116 for missing rows.
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('name, avatar_url, birth_date, onboarding_completed, couple_id, dating_start_date, help_focus')
+      .select('name, avatar_url, birth_date, onboarding_completed, couple_id')
       .eq('id', userId)
       .maybeSingle();
 
@@ -175,6 +175,27 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
       return { ok: false, error: { code: 'PROFILE_NOT_FOUND', message: 'Profile not found. Please sign in again.' } };
     }
 
+    const coupleId = (profile.couple_id as string | null) ?? null;
+
+    // Couple setup data lives in the couples table (shared between partners).
+    // Only query it when the user is already paired.
+    let datingStartDate: string | null = null;
+    let helpFocus: string | null = null;
+    let coupleSetupCompleted = false;
+
+    if (coupleId) {
+      const { data: coupleData } = await supabase
+        .from('couples')
+        .select('dating_start_date, help_focus')
+        .eq('id', coupleId)
+        .maybeSingle();
+
+      const couple = coupleData as { dating_start_date: string | null; help_focus: string | null } | null;
+      datingStartDate = couple?.dating_start_date ?? null;
+      helpFocus = couple?.help_focus ?? null;
+      coupleSetupCompleted = datingStartDate !== null && helpFocus !== null;
+    }
+
     return {
       ok: true,
       data: {
@@ -182,13 +203,11 @@ export async function fetchProfile(userId: string): Promise<AuthResult<AuthUser>
         name: (profile.name as string) ?? baseUser.name,
         avatarUrl: (profile.avatar_url as string) ?? baseUser.avatarUrl,
         birthDate: (profile.birth_date as string) ?? null,
-        helpFocus: (profile.help_focus as string) ?? null,
-        datingStartDate: (profile.dating_start_date as string) ?? null,
+        helpFocus,
+        datingStartDate,
         onboardingCompleted: (profile.onboarding_completed as boolean) ?? false,
-        coupleSetupCompleted:
-          (profile.dating_start_date as string | null) !== null &&
-          (profile.help_focus as string | null) !== null,
-        coupleId: (profile.couple_id as string) ?? null,
+        coupleSetupCompleted,
+        coupleId,
       },
     };
   } catch {

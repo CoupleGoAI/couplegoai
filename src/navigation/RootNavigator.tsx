@@ -12,7 +12,7 @@ import { GenerateQRScreen } from '@screens/main/GenerateQRScreen';
 import { ScanQRScreen } from '@screens/main/ScanQRScreen';
 import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScreen';
 import { CoupleSetupScreen } from '@screens/main/CoupleSetupScreen';
-import { HomeScreen } from '@screens/main/HomeScreen';
+import MainTabNavigator from '@navigation/MainTabNavigator';
 import { AiChatScreen } from '@screens/main/AiChatScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
 import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
@@ -80,7 +80,7 @@ export default function RootNavigator() {
                     <Stack.Screen name="CoupleSetup" component={CoupleSetupScreen} />
                 ) : (
                     <>
-                        <Stack.Screen name="Home" component={HomeScreen} />
+                        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
                         <Stack.Screen
                             name="AiChat"
                             component={AiChatScreen}

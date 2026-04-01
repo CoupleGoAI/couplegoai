@@ -165,8 +165,17 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
                     />
                 );
             }
-            // role is narrowed to 'user' | 'assistant' here; ChatBubble expects exactly that
-            return <ChatBubble message={{ id: item.id, role: item.role as 'user' | 'assistant', content: item.content, createdAt: item.createdAt }} />;
+            return (
+                <ChatBubble
+                    message={{
+                        id: item.id,
+                        role: item.role as 'user' | 'assistant' | 'partner',
+                        content: item.content,
+                        createdAt: item.createdAt,
+                        senderName: item.senderName,
+                    }}
+                />
+            );
         },
         [confirmDatePicker],
     );

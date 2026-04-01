@@ -58,7 +58,7 @@ export default function DisconnectConfirmScreen({
         setDisconnecting(true);
         if (intervalRef.current) clearInterval(intervalRef.current);
         await disconnect();
-        navigation.navigate('Home');
+        navigation.navigate('MainTabs');
     }, [disconnect, navigation, disconnecting]);
 
     useEffect(() => {

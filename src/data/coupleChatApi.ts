@@ -135,3 +135,80 @@ export function subscribeToCoupleChatMessages(
 
     return channel;
 }
+
+// ─── Couple Setup Realtime ────────────────────────────────────────────────────
+
+export interface CoupleSetupIncomingMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: number;
+    senderName: string | null;
+}
+
+/** Subscribes to partner's couple_setup messages (INSERT events on messages table). */
+export function subscribeToPartnerCoupleSetupMessages(
+    partnerId: string,
+    partnerName: string | null,
+    onInsert: (msg: CoupleSetupIncomingMessage) => void,
+): RealtimeChannel {
+    const channel = supabase
+        .channel('couple_setup_' + partnerId)
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+                filter: `user_id=eq.${partnerId}`,
+            },
+            (payload) => {
+                const row = payload.new as RealtimeMessagePayload;
+                if (row.conversation_type !== 'couple_setup') return;
+                if (row.role !== 'user' && row.role !== 'assistant') return;
+
+                onInsert({
+                    id: row.id,
+                    role: row.role as 'user' | 'assistant',
+                    content: row.content,
+                    createdAt: new Date(row.created_at).getTime(),
+                    senderName: row.role === 'user' ? (partnerName ?? 'Partner') : null,
+                });
+            },
+        )
+        .subscribe();
+
+    return channel;
+}
+
+interface CoupleCompletionPayload {
+    dating_start_date: string | null;
+    help_focus: string | null;
+}
+
+/** Subscribes to the couple row. Calls onComplete when both fields are set. */
+export function subscribeToCoupleCompletion(
+    coupleId: string,
+    onComplete: () => void,
+): RealtimeChannel {
+    const channel = supabase
+        .channel('couple_completion_' + coupleId)
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'couples',
+                filter: `id=eq.${coupleId}`,
+            },
+            (payload) => {
+                const row = payload.new as CoupleCompletionPayload;
+                if (row.dating_start_date && row.help_focus) {
+                    onComplete();
+                }
+            },
+        )
+        .subscribe();
+
+    return channel;
+}

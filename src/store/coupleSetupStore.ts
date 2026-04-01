@@ -5,9 +5,12 @@ import type { InteractivePayload } from '@/types/index';
 
 export interface CoupleSetupMessage {
     id: string;
-    role: 'user' | 'assistant' | 'interactive';
+    /** 'user' = current user, 'partner' = other partner, 'assistant' = AI, 'interactive' = UI widget */
+    role: 'user' | 'partner' | 'assistant' | 'interactive';
     content: string;
     createdAt: number;
+    /** Display name shown above partner messages */
+    senderName?: string | null;
     /** Present only when role === 'interactive' */
     interactive?: InteractivePayload;
 }

@@ -1,20 +1,16 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import Animated, {
-    FadeInDown,
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-    withSpring,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useAuthStore } from '@store/authStore';
 import { useAuth } from '@hooks/useAuth';
 import { DevMenu } from '@components/ui/DevMenu';
-import type { RootNavProp } from '@navigation/types';
+import { fetchPartnerInfo } from '@/data/coupleChatApi';
+import type { PartnerInfo } from '@/data/coupleChatApi';
+import type { NestScreenNavProp } from '@navigation/types';
 import {
     colors,
     gradients,
@@ -34,35 +30,88 @@ function timeGreeting(): string {
     return 'Good evening';
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+function formatTogetherSince(dateStr: string | null): string | null {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return `Together since ${d.toLocaleString('en-US', { month: 'long', year: 'numeric' })}`;
+}
+
+interface QuickLink {
+    label: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    color: string;
+}
+
+const QUICK_LINKS: readonly QuickLink[] = [
+    { label: 'Chat',    icon: 'chatbubble-ellipses-outline', color: colors.primary },
+    { label: 'Games',   icon: 'game-controller-outline',     color: colors.accent },
+    { label: 'Quiz',    icon: 'help-circle-outline',         color: colors.accent },
+    { label: 'Moments', icon: 'image-outline',               color: colors.primary },
+];
+
+interface AvatarCircleProps {
+    uri: string | null;
+    initial: string | null;
+    size: number;
+}
+
+function AvatarCircle({ uri, initial, size }: AvatarCircleProps): React.ReactElement {
+    return (
+        <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
+            {uri ? (
+                <Image
+                    source={{ uri }}
+                    style={{ width: size, height: size, borderRadius: size / 2 }}
+                />
+            ) : (
+                <Text style={[styles.avatarInitial, { fontSize: size * 0.38 }]}>
+                    {initial?.charAt(0).toUpperCase() ?? '?'}
+                </Text>
+            )}
+        </View>
+    );
+}
 
 export function HomeScreen(): React.ReactElement {
-    const navigation = useNavigation<RootNavProp>();
-    const name = useAuthStore((s) => s.user?.name ?? null);
-    const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
+    const navigation = useNavigation<NestScreenNavProp>();
+    const user = useAuthStore((s) => s.user);
     const setPairingSkipped = useAuthStore((s) => s.setPairingSkipped);
-    const firstName = name?.split(' ')[0] ?? null;
+    const firstName = user?.name?.split(' ')[0] ?? null;
     const { signOut } = useAuth();
     const [isDevMenuVisible, setIsDevMenuVisible] = useState(false);
+    const [partner, setPartner] = useState<PartnerInfo | null>(null);
 
     const handleDevSignOut = useCallback(async () => {
         setIsDevMenuVisible(false);
         await signOut();
     }, [signOut]);
 
-    const chatScale = useSharedValue(1);
-    const chatAnimStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: chatScale.value }],
-    }));
-
     const nameOpacity = useSharedValue(0.7);
     const nameAnimStyle = useAnimatedStyle(() => ({
         opacity: nameOpacity.value,
     }));
 
-    React.useEffect(() => {
+    useEffect(() => {
         nameOpacity.value = withTiming(1, { duration: 800 });
     }, [nameOpacity]);
+
+    useEffect(() => {
+        if (!user?.coupleId || !user.id) return;
+        void fetchPartnerInfo(user.coupleId, user.id).then((result) => {
+            if (result.ok) setPartner(result.data);
+        });
+    }, [user?.coupleId, user?.id]);
+
+    const togetherSince = formatTogetherSince(user?.datingStartDate ?? null);
+
+    function handleQuickLink(label: string): void {
+        switch (label) {
+            case 'Chat':    navigation.navigate('AiChat'); break;
+            case 'Games':   navigation.navigate('Play'); break;
+            case 'Quiz':    navigation.navigate('Us'); break;
+            case 'Moments': navigation.navigate('Moments'); break;
+        }
+    }
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -73,7 +122,11 @@ export function HomeScreen(): React.ReactElement {
                 end={{ x: 0.7, y: 1 }}
             />
 
-            <View style={styles.container}>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.container}
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Greeting */}
                 <Animated.View entering={FadeInDown.delay(60).duration(400)} style={styles.greetingRow}>
                     <View>
@@ -91,60 +144,51 @@ export function HomeScreen(): React.ReactElement {
                     </View>
                 </Animated.View>
 
-                {/* Spacer */}
-                <View style={styles.spacer} />
+                {/* Couple card — only when connected */}
+                {user?.coupleId !== null && user?.coupleId !== undefined ? (
+                    <Animated.View entering={FadeInDown.delay(140).duration(420)} style={styles.coupleCard}>
+                        <View style={styles.avatarRow}>
+                            <View style={styles.avatarWrap}>
+                                <AvatarCircle
+                                    uri={user?.avatarUrl ?? null}
+                                    initial={user?.name ?? null}
+                                    size={56}
+                                />
+                                <Text style={styles.avatarName} numberOfLines={1}>
+                                    {user?.name?.split(' ')[0] ?? 'You'}
+                                </Text>
+                            </View>
 
-                {/* AI Chat — large portal card */}
-                <Animated.View entering={FadeInDown.delay(140).duration(420).springify()} style={chatAnimStyle}>
-                    <AnimatedPressable
-                        onPress={() => navigation.navigate('AiChat')}
-                        onPressIn={() => { chatScale.value = withTiming(0.97, { duration: 120 }); }}
-                        onPressOut={() => { chatScale.value = withSpring(1, { damping: 14, stiffness: 200 }); }}
-                    >
-                        <LinearGradient
-                            colors={[colors.accentSoft, colors.muted]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.chatCard}
-                        >
-                            <View style={styles.chatIconRing}>
+                            <View style={styles.heartWrap}>
                                 <LinearGradient
                                     colors={gradients.brand}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 1 }}
-                                    style={styles.chatIconGradient}
+                                    style={styles.heartGradient}
                                 >
-                                    <Ionicons name="chatbubble-ellipses" size={28} color={colors.white} />
+                                    <Ionicons name="heart" size={18} color={colors.white} />
                                 </LinearGradient>
                             </View>
-                            <Text style={styles.chatTitle}>AI Companion</Text>
-                            <Text style={styles.chatSubtitle}>
-                                Talk through what's on your mind — I'm here to listen.
-                            </Text>
-                            <View style={styles.chatCta}>
-                                <Text style={styles.chatCtaText}>Start chatting</Text>
-                                <Ionicons name="arrow-forward" size={14} color={colors.primary} />
-                            </View>
-                        </LinearGradient>
-                    </AnimatedPressable>
-                </Animated.View>
 
-                {/* Connected pill — shown when paired */}
-                {coupleId !== null && (
-                    <Animated.View entering={FadeInDown.delay(220).duration(400)}>
-                        <View style={styles.connectedPill}>
-                            <View style={styles.connectedIconWrap}>
-                                <Ionicons name="heart" size={16} color={colors.accent} />
+                            <View style={styles.avatarWrap}>
+                                <AvatarCircle
+                                    uri={partner?.avatarUrl ?? null}
+                                    initial={partner?.name ?? null}
+                                    size={56}
+                                />
+                                <Text style={styles.avatarName} numberOfLines={1}>
+                                    {partner?.name?.split(' ')[0] ?? '...'}
+                                </Text>
                             </View>
-                            <Text style={styles.connectedLabel}>Connected</Text>
-                            <View style={styles.connectedDot} />
                         </View>
-                    </Animated.View>
-                )}
 
-                {/* Pair with partner — only when not yet connected */}
-                {coupleId === null && (
-                    <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+                        {togetherSince !== null && (
+                            <Text style={styles.togetherSince}>{togetherSince}</Text>
+                        )}
+                    </Animated.View>
+                ) : (
+                    /* Pair CTA — when not yet connected */
+                    <Animated.View entering={FadeInDown.delay(140).duration(420)}>
                         <TouchableOpacity
                             style={styles.pairPill}
                             activeOpacity={0.82}
@@ -159,25 +203,25 @@ export function HomeScreen(): React.ReactElement {
                     </Animated.View>
                 )}
 
-                {/* Profile pill */}
-                <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-                    <TouchableOpacity
-                        style={styles.profilePill}
-                        activeOpacity={0.82}
-                        onPress={() => navigation.navigate('Profile')}
-                    >
-                        <View style={styles.profileAvatar}>
-                            <Text style={styles.profileInitial}>
-                                {firstName?.charAt(0).toUpperCase() ?? '?'}
-                            </Text>
-                        </View>
-                        <Text style={styles.profileLabel}>Profile</Text>
-                        <Ionicons name="chevron-forward" size={16} color={colors.gray} style={styles.profileChevron} />
-                    </TouchableOpacity>
+                {/* Quick links */}
+                <Animated.View entering={FadeInDown.delay(220).duration(400)} style={styles.quickRow}>
+                    {QUICK_LINKS.map((link) => (
+                        <TouchableOpacity
+                            key={link.label}
+                            style={styles.quickCard}
+                            activeOpacity={0.8}
+                            onPress={() => handleQuickLink(link.label)}
+                        >
+                            <View style={[styles.quickIcon, { backgroundColor: link.color + '22' }]}>
+                                <Ionicons name={link.icon} size={22} color={link.color} />
+                            </View>
+                            <Text style={styles.quickLabel}>{link.label}</Text>
+                        </TouchableOpacity>
+                    ))}
                 </Animated.View>
 
                 <View style={styles.bottomPad} />
-            </View>
+            </ScrollView>
 
             <DevMenu
                 visible={isDevMenuVisible}
@@ -190,8 +234,9 @@ export function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
-    container: { flex: 1, paddingHorizontal: spacing.xl },
-    greetingRow: { paddingTop: spacing.xl },
+    scroll: { flex: 1 },
+    container: { paddingHorizontal: spacing.xl, paddingBottom: spacing['2xl'] },
+    greetingRow: { paddingTop: spacing.xl, marginBottom: spacing.xl },
     greetingLabel: {
         fontFamily: fontFamilies.sans,
         fontSize: fontSize.sm,
@@ -205,83 +250,66 @@ const styles = StyleSheet.create({
         color: colors.foreground,
         marginTop: spacing.xs,
     },
-    spacer: { flex: 1 },
-    chatCard: {
+    coupleCard: {
+        backgroundColor: colors.background,
         borderRadius: radii.radius,
         padding: spacing.xl,
-        paddingBottom: spacing['2xl'],
+        alignItems: 'center',
         gap: spacing.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
         ...shadows.md,
+        marginBottom: spacing.xl,
     },
-    chatIconRing: { alignSelf: 'flex-start', marginBottom: spacing.sm },
-    chatIconGradient: {
-        width: 56,
-        height: 56,
+    avatarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+    },
+    avatarWrap: {
+        alignItems: 'center',
+        gap: spacing.xs,
+        width: 72,
+    },
+    avatar: {
+        backgroundColor: colors.accentSoft,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: colors.borderLight,
+    },
+    avatarInitial: {
+        fontFamily: fontFamilies.sans,
+        fontWeight: fontWeight.bold,
+        color: colors.accent,
+    },
+    avatarName: {
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.medium,
+        color: colors.foregroundMuted,
+        textAlign: 'center',
+    },
+    heartWrap: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    heartGradient: {
+        width: 36,
+        height: 36,
         borderRadius: radii.radiusFull,
         alignItems: 'center',
         justifyContent: 'center',
         ...shadows.glowPrimary,
     },
-    chatTitle: {
-        fontFamily: fontFamilies.sans,
-        fontSize: fontSize['2xl'],
-        fontWeight: fontWeight.bold,
-        color: colors.foreground,
-    },
-    chatSubtitle: {
-        fontFamily: fontFamilies.sans,
-        fontSize: fontSize.base,
-        fontWeight: fontWeight.regular,
-        color: colors.foregroundMuted,
-        lineHeight: fontSize.base * 1.6,
-    },
-    chatCta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-        marginTop: spacing.sm,
-    },
-    chatCtaText: {
+    togetherSince: {
         fontFamily: fontFamilies.sans,
         fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.primary,
-    },
-    profilePill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.background,
-        borderRadius: radii.radiusFull,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        marginTop: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.borderDefault,
-        gap: spacing.md,
-        ...shadows.sm,
-    },
-    profileAvatar: {
-        width: 36,
-        height: 36,
-        borderRadius: radii.radiusFull,
-        backgroundColor: colors.accentSoft,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    profileInitial: {
-        fontFamily: fontFamilies.sans,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.accent,
-    },
-    profileLabel: {
-        flex: 1,
-        fontFamily: fontFamilies.sans,
-        fontSize: fontSize.base,
         fontWeight: fontWeight.medium,
-        color: colors.foreground,
+        color: colors.gray,
+        textAlign: 'center',
     },
-    profileChevron: { marginLeft: 'auto' },
     pairPill: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -289,7 +317,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.radiusFull,
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
-        marginTop: spacing.lg,
+        marginBottom: spacing.xl,
         borderWidth: 1,
         borderColor: colors.primaryLight,
         gap: spacing.md,
@@ -312,40 +340,33 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.medium,
         color: colors.primary,
     },
-    connectedPill: {
+    quickRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.accentSoft,
-        borderRadius: radii.radiusFull,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        marginTop: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.accentLight,
-        gap: spacing.md,
+        gap: spacing.sm,
     },
-    connectedIconWrap: {
-        width: 36,
-        height: 36,
-        borderRadius: radii.radiusFull,
+    quickCard: {
+        flex: 1,
         backgroundColor: colors.background,
+        borderRadius: radii.radiusMd,
+        paddingVertical: spacing.md,
+        alignItems: 'center',
+        gap: spacing.xs,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        ...shadows.sm,
+    },
+    quickIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: radii.radiusMd,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: colors.accentLight,
     },
-    connectedLabel: {
-        flex: 1,
+    quickLabel: {
         fontFamily: fontFamilies.sans,
-        fontSize: fontSize.base,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.medium,
-        color: colors.accent,
-    },
-    connectedDot: {
-        width: 8,
-        height: 8,
-        borderRadius: radii.radiusFull,
-        backgroundColor: colors.success,
+        color: colors.foregroundMuted,
     },
     bottomPad: { height: spacing['2xl'] },
 });

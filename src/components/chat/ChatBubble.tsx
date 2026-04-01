@@ -5,9 +5,10 @@ import { colors, gradients, radii, spacing, fontFamilies, fontSize, fontWeight }
 
 interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'partner';
   content: string;
   createdAt: number;
+  senderName?: string | null;
 }
 
 interface ChatBubbleProps {
@@ -26,6 +27,7 @@ function formatTime(ms: number): string {
  */
 export const ChatBubble = React.memo(({ message }: ChatBubbleProps) => {
   const isUser = message.role === 'user';
+  const isPartner = message.role === 'partner';
   const timeLabel = formatTime(message.createdAt);
 
   if (isUser) {
@@ -40,6 +42,22 @@ export const ChatBubble = React.memo(({ message }: ChatBubbleProps) => {
           >
             <Text style={styles.userText}>{message.content}</Text>
           </LinearGradient>
+          <Text style={styles.timestamp}>{timeLabel}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isPartner) {
+    return (
+      <View style={styles.rowLeft}>
+        <View style={styles.aiOuter}>
+          {message.senderName !== null && message.senderName !== undefined && (
+            <Text style={styles.senderName}>{message.senderName}</Text>
+          )}
+          <View style={styles.partnerBubble}>
+            <Text style={styles.partnerText}>{message.content}</Text>
+          </View>
           <Text style={styles.timestamp}>{timeLabel}</Text>
         </View>
       </View>
@@ -93,6 +111,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  partnerBubble: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.radiusMd,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
   userBubble: {
     borderRadius: radii.radiusMd,
     paddingHorizontal: spacing.lg,
@@ -105,12 +131,26 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     lineHeight: fontSize.base * 1.5,
   },
+  partnerText: {
+    fontFamily: fontFamilies.sans,
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.regular,
+    color: colors.foreground,
+    lineHeight: fontSize.base * 1.5,
+  },
   userText: {
     fontFamily: fontFamilies.sans,
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
     color: colors.white,
     lineHeight: fontSize.base * 1.5,
+  },
+  senderName: {
+    fontFamily: fontFamilies.sans,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    color: colors.accent,
+    marginBottom: spacing.xs,
   },
   timestamp: {
     fontFamily: fontFamilies.sans,

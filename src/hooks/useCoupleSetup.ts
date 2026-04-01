@@ -3,9 +3,16 @@ import { useCoupleSetupStore } from '@store/coupleSetupStore';
 import { useAuthStore } from '@store/authStore';
 import { sendCoupleSetupMessage } from '@data/coupleSetupApi';
 import * as authData from '@data/auth';
+import {
+    fetchPartnerInfo,
+    subscribeToPartnerCoupleSetupMessages,
+    subscribeToCoupleCompletion,
+} from '@data/coupleChatApi';
+import { supabase } from '@data/supabase';
 import { sanitizeMessage } from '@domain/onboarding/validation';
 import type { CoupleSetupMessage } from '@store/coupleSetupStore';
 import type { InteractivePayload } from '@/types/index';
+import type { PartnerInfo } from '@data/coupleChatApi';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,6 +32,7 @@ export interface UseCoupleSetupReturn {
     retryComplete: () => Promise<void>;
     hasActivePicker: boolean;
     confirmDatePicker: (isoDate: string) => void;
+    partnerInfo: PartnerInfo | null;
 }
 
 // ─── ID Helper ────────────────────────────────────────────────────────────────
@@ -38,6 +46,7 @@ function generateMessageId(prefix: string): string {
 export function useCoupleSetup(): UseCoupleSetupReturn {
     const [isInitializing, setIsInitializing] = useState(true);
     const [activePicker, setActivePicker] = useState<InteractivePayload | null>(null);
+    const [partnerInfo, setPartnerInfo] = useState<PartnerInfo | null>(null);
 
     const messages = useCoupleSetupStore((s) => s.messages);
     const isComplete = useCoupleSetupStore((s) => s.isComplete);
@@ -53,8 +62,51 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
 
     const setUser = useAuthStore((s) => s.setUser);
     const userId = useAuthStore((s) => s.user?.id);
+    const coupleId = useAuthStore((s) => s.user?.coupleId);
 
     const hasInitialized = useRef(false);
+
+    // Fetch partner info once coupled
+    useEffect(() => {
+        if (!coupleId || !userId) return;
+        let cancelled = false;
+        void fetchPartnerInfo(coupleId, userId).then((result) => {
+            if (cancelled) return;
+            if (result.ok) setPartnerInfo(result.data);
+        });
+        return () => { cancelled = true; };
+    }, [coupleId, userId]);
+
+    // Subscribe to partner's couple_setup messages in realtime
+    useEffect(() => {
+        if (!partnerInfo) return;
+        const channel = subscribeToPartnerCoupleSetupMessages(
+            partnerInfo.id,
+            partnerInfo.name,
+            (msg) => {
+                const incoming: CoupleSetupMessage = {
+                    id: msg.id,
+                    role: msg.role === 'assistant' ? 'assistant' : 'partner',
+                    content: msg.content,
+                    createdAt: msg.createdAt,
+                    senderName: msg.role === 'user' ? msg.senderName : null,
+                };
+                addMessage(incoming);
+            },
+        );
+        return () => { void supabase.removeChannel(channel); };
+    }, [partnerInfo, addMessage]);
+
+    // Subscribe to couple row — auto-complete when partner finishes setup
+    useEffect(() => {
+        if (!coupleId || !userId) return;
+        const channel = subscribeToCoupleCompletion(coupleId, () => {
+            void authData.fetchProfile(userId).then((result) => {
+                if (result.ok) setUser(result.data);
+            });
+        });
+        return () => { void supabase.removeChannel(channel); };
+    }, [coupleId, userId, setUser]);
 
     // Derive display messages — append synthetic interactive message when a picker is active
     const displayMessages = useMemo((): CoupleSetupMessage[] => {
@@ -177,5 +229,6 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
         retryComplete,
         hasActivePicker: activePicker !== null,
         confirmDatePicker,
+        partnerInfo,
     };
 }

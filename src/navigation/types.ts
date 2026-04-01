@@ -1,9 +1,21 @@
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { BottomTabNavigationProp, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 // --- Auth Stack ---
 export type AuthStackParamList = {
     Login: undefined;
     Register: undefined;
+};
+
+// --- Main Tab ---
+export type MainTabParamList = {
+    Nest: undefined;
+    Play: undefined;
+    /** Dummy route — center button navigates to AiChat in root stack */
+    ChatTab: undefined;
+    Moments: undefined;
+    Us: undefined;
 };
 
 // --- Root Stack ---
@@ -14,7 +26,7 @@ export type RootStackParamList = {
     ScanQR: undefined;
     ConnectionConfirmed: { partnerName: string | null; coupleId: string };
     CoupleSetup: undefined;
-    Home: undefined;
+    MainTabs: undefined;
     AiChat: undefined;
     Profile: undefined;
     DisconnectConfirm: undefined;
@@ -23,6 +35,16 @@ export type RootStackParamList = {
 // Navigation prop helpers
 export type AuthNavProp = NativeStackNavigationProp<AuthStackParamList>;
 export type RootNavProp = NativeStackNavigationProp<RootStackParamList>;
+
+// Composite nav prop for tab screens that also need root-stack navigation
+export type NestScreenNavProp = CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList, 'Nest'>,
+    NativeStackNavigationProp<RootStackParamList>
+>;
+export type UsScreenNavProp = CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList, 'Us'>,
+    NativeStackNavigationProp<RootStackParamList>
+>;
 
 // Auth screen props
 export type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
@@ -45,3 +67,7 @@ export type ConnectionConfirmedScreenProps = NativeStackScreenProps<RootStackPar
 // Profile & Disconnect screen props
 export type ProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'Profile'>;
 export type DisconnectConfirmScreenProps = NativeStackScreenProps<RootStackParamList, 'DisconnectConfirm'>;
+
+// Tab screen props
+export type GamesScreenProps = BottomTabScreenProps<MainTabParamList, 'Play'>;
+export type ActivitiesScreenProps = BottomTabScreenProps<MainTabParamList, 'Moments'>;

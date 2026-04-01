@@ -1,5 +1,6 @@
 // =============================================================================
 // couple-setup — Deterministic chat collecting dating start date + help focus
+// Answers are stored in the couples table (shared between both partners).
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -124,17 +125,22 @@ function validateHelpFocus(input: string): { valid: boolean; value: string; hint
     return { valid: true, value: normalized };
 }
 
-// ─── Step derivation from profile ────────────────────────────────────────────
+// ─── Step derivation from couple row ─────────────────────────────────────────
 
-interface ProfileRow {
-    birth_date: string | null;
+interface CoupleRow {
+    id: string;
     dating_start_date: string | null;
     help_focus: string | null;
 }
 
-function deriveStep(profile: ProfileRow): number {
-    if (!profile.dating_start_date) return 0;
-    if (!profile.help_focus) return 1;
+interface ProfileRow {
+    birth_date: string | null;
+    couple_id: string | null;
+}
+
+function deriveStep(couple: CoupleRow): number {
+    if (!couple.dating_start_date) return 0;
+    if (!couple.help_focus) return 1;
     return 2;
 }
 
@@ -183,6 +189,7 @@ Deno.serve(async (req) => {
             return errorResponse("Server configuration error", 500);
         }
 
+        // ── Verify identity ─────────────────────────────────────────────────
         const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
             headers: {
                 Authorization: authHeader,
@@ -201,6 +208,7 @@ Deno.serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+        // ── Parse body ──────────────────────────────────────────────────────
         let message = "";
         try {
             const body = await req.json();
@@ -211,9 +219,10 @@ Deno.serve(async (req) => {
             message = "";
         }
 
+        // ── Fetch profile (birth_date + couple_id) ─────────────────────────
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("birth_date, dating_start_date, help_focus")
+            .select("birth_date, couple_id")
             .eq("id", userId)
             .single();
 
@@ -228,7 +237,28 @@ Deno.serve(async (req) => {
             return errorResponse("Onboarding profile not complete", 400);
         }
 
-        if (typedProfile.dating_start_date && typedProfile.help_focus) {
+        if (!typedProfile.couple_id) {
+            return errorResponse("Not paired with a partner yet", 400);
+        }
+
+        const coupleId = typedProfile.couple_id;
+
+        // ── Fetch couple row (shared setup state) ──────────────────────────
+        const { data: coupleData, error: coupleError } = await supabase
+            .from("couples")
+            .select("id, dating_start_date, help_focus")
+            .eq("id", coupleId)
+            .single();
+
+        if (coupleError || !coupleData) {
+            logError("COUPLE_FETCH_FAILED", coupleError, { userId, coupleId });
+            return errorResponse("Couple not found", 404, coupleError);
+        }
+
+        const couple = coupleData as CoupleRow;
+
+        // ── Already complete ────────────────────────────────────────────────
+        if (couple.dating_start_date && couple.help_focus) {
             return json({
                 reply: pick(PROMPTS.complete),
                 questionIndex: 2,
@@ -236,19 +266,19 @@ Deno.serve(async (req) => {
             });
         }
 
-        // ── Start flow ──────────────────────────────────────────────────────────
+        // ── Start flow (empty message = greeting / reset) ───────────────────
         if (message.length === 0) {
-            const { error: resetProfileError } = await supabase
-                .from("profiles")
+            const { error: resetError } = await supabase
+                .from("couples")
                 .update({
                     dating_start_date: null,
                     help_focus: null,
                 })
-                .eq("id", userId);
+                .eq("id", coupleId);
 
-            if (resetProfileError) {
-                logError("RESET_PROFILE_FAILED", resetProfileError, { userId });
-                return errorResponse("Failed to reset couple setup profile", 500, resetProfileError);
+            if (resetError) {
+                logError("RESET_COUPLE_FAILED", resetError, { userId, coupleId });
+                return errorResponse("Failed to reset couple setup", 500, resetError);
             }
 
             const reply = pick(PROMPTS.greet);
@@ -269,8 +299,8 @@ Deno.serve(async (req) => {
             });
         }
 
-        // ── Progress flow ───────────────────────────────────────────────────────
-        const currentStep = deriveStep(typedProfile);
+        // ── Progress flow ───────────────────────────────────────────────────
+        const currentStep = deriveStep(couple);
 
         if (currentStep === 0) {
             const result = validateDatingStartDate(message, typedProfile.birth_date);
@@ -306,16 +336,17 @@ Deno.serve(async (req) => {
             }
 
             const { error: updateError } = await supabase
-                .from("profiles")
+                .from("couples")
                 .update({ dating_start_date: result.value })
-                .eq("id", userId);
+                .eq("id", coupleId);
 
             if (updateError) {
                 logError("UPDATE_DATING_START_FAILED", updateError, {
                     userId,
+                    coupleId,
                     dating_start_date: result.value,
                 });
-                return errorResponse("Failed to update profile", 500, updateError);
+                return errorResponse("Failed to update couple", 500, updateError);
             }
 
             return json({
@@ -359,16 +390,17 @@ Deno.serve(async (req) => {
             }
 
             const { error: updateError } = await supabase
-                .from("profiles")
+                .from("couples")
                 .update({ help_focus: result.value })
-                .eq("id", userId);
+                .eq("id", coupleId);
 
             if (updateError) {
                 logError("UPDATE_HELP_FOCUS_FAILED", updateError, {
                     userId,
+                    coupleId,
                     help_focus: result.value,
                 });
-                return errorResponse("Failed to update profile", 500, updateError);
+                return errorResponse("Failed to update couple", 500, updateError);
             }
 
             return json({
