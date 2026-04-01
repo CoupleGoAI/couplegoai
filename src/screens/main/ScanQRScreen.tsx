@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Keyboard, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -23,10 +23,22 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
     const scannedRef = useRef(false);
     const [manualCode, setManualCode] = useState('');
     const [localError, setLocalError] = useState<string | null>(null);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     useEffect(() => {
       clearEntryScreen();
     }, [clearEntryScreen]);
+
+    useEffect(() => {
+      const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+      const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      const show = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+      const hide = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+      return () => {
+        show.remove();
+        hide.remove();
+      };
+    }, []);
 
     useEffect(() => {
       // Trigger native OS dialog when status is unknown or can be requested again (Android)
@@ -151,23 +163,27 @@ export const ScanQRScreen: React.FC<ScanQRScreenProps> = React.memo(
             </Text>
           </View>
 
-          {/* Camera viewfinder */}
-          <View style={styles.cameraContainer}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={isPending || manualCode.length > 0 ? undefined : handleBarCodeScanned}
-            />
-            {/* Overlay frame */}
-            <View style={styles.overlay} pointerEvents="none">
-              <View style={styles.frame} />
+          {/* Camera viewfinder — hidden while keyboard is up so input stays visible */}
+          {!keyboardVisible && (
+            <View style={styles.cameraContainer}>
+              <CameraView
+                style={styles.camera}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={isPending || manualCode.length > 0 ? undefined : handleBarCodeScanned}
+              />
+              {/* Overlay frame */}
+              <View style={styles.overlay} pointerEvents="none">
+                <View style={styles.frame} />
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Manual fallback input */}
           <View style={styles.manualCodeSection}>
-            <Text style={styles.manualCodeLabel}>Enter alternative code</Text>
+            <Text style={styles.manualCodeLabel}>
+              <Text style={styles.manualCodeLabelOr}>OR </Text>enter alternative code
+            </Text>
             <View style={styles.manualCodeInputWrap}>
               <TextInput
                 value={manualCode}
@@ -313,6 +329,11 @@ const styles = StyleSheet.create({
   manualCodeLabel: {
     ...textStyles.bodySm,
     color: colors.gray,
+  },
+  manualCodeLabelOr: {
+    ...textStyles.bodySm,
+    color: colors.accent,
+    fontWeight: '700',
   },
   manualCodeInputWrap: {
     flexDirection: 'row',
