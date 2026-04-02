@@ -85,4 +85,4 @@ export type ChatHistoryResult =
  * Add new types here to extend the interactive message system.
  */
 export type InteractivePayload =
-    | { type: 'date-picker'; minDate?: string; maxDate?: string };
+    | { type: 'date-picker'; minDate?: string; maxDate?: string; title?: string };

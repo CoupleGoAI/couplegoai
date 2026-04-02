@@ -183,7 +183,7 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
             // questionIndex === 0 means the AI just asked for the dating start date — show picker
             if (questionIndex === 0 && !complete) {
                 const today = new Date().toISOString().split('T')[0];
-                setActivePicker({ type: 'date-picker', maxDate: today });
+                setActivePicker({ type: 'date-picker', maxDate: today, title: 'When did you start dating?' });
             }
 
             // Refresh auth profile so RootNavigator transitions reactively

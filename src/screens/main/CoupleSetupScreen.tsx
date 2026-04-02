@@ -108,7 +108,12 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
     // Footer slot: date picker → chips → nothing
     const footerSlot = useMemo((): React.ReactElement | null => {
         if (activePicker !== null) {
-            return <InteractiveMessageBubble payload={activePicker} onConfirm={confirmDatePicker} />;
+            return (
+                <InteractiveMessageBubble 
+                    payload={{ ...activePicker, title: 'When did you start dating?' }} 
+                    onConfirm={confirmDatePicker} 
+                />
+            );
         }
         if (showChips) {
             return <HelpTypeChips onSelect={handleChipSelect} disabled={isLoading || showTyping} />;

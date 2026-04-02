@@ -20,6 +20,7 @@ export const InteractiveMessageBubble: React.FC<InteractiveMessageBubbleProps> =
     <View style={styles.wrapper}>
         {payload.type === 'date-picker' && (
             <DatePickerMessage
+                title={payload.title}
                 minDate={payload.minDate}
                 maxDate={payload.maxDate}
                 onConfirm={onConfirm}

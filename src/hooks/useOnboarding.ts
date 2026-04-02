@@ -144,7 +144,7 @@ export function useOnboarding(): UseOnboardingReturn {
       // questionIndex === 1 means the AI just asked for the birth date — show picker
       if (questionIndex === 1 && !complete) {
         const maxYear = new Date().getFullYear() - 16;
-        setActivePicker({ type: 'date-picker', maxDate: `${maxYear}-12-31` });
+        setActivePicker({ type: 'date-picker', maxDate: `${maxYear}-12-31`, title: 'When is your birthday?' });
       }
     },
     // Zustand actions are stable references; userId is stable post-auth

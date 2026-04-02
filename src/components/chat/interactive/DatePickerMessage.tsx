@@ -155,12 +155,14 @@ PickerColumn.displayName = 'PickerColumn';
 // ─── Date Picker Message ──────────────────────────────────────────────────────
 
 interface DatePickerMessageProps {
+    title?: string;
     minDate?: string;
     maxDate?: string;
     onConfirm: (isoDate: string) => void;
 }
 
 export const DatePickerMessage: React.FC<DatePickerMessageProps> = ({
+    title,
     minDate,
     maxDate,
     onConfirm,
@@ -191,7 +193,7 @@ export const DatePickerMessage: React.FC<DatePickerMessageProps> = ({
 
     return (
         <View style={styles.card}>
-            <Text style={styles.label}>When did you start dating?</Text>
+            <Text style={styles.label}>{title || 'Select a date'}</Text>
             <View style={styles.columnsRow}>
                 <PickerColumn data={MONTHS} selectedIndex={monthIdx} onSelect={setMonthIdx} />
                 <View style={styles.columnDivider} />

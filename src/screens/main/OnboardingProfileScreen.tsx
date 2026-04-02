@@ -88,7 +88,12 @@ export function OnboardingProfileScreen(_props: OnboardingProfileScreenProps): R
 
     const footerSlot = useMemo((): React.ReactElement | null => {
         if (activePicker !== null) {
-            return <InteractiveMessageBubble payload={activePicker} onConfirm={confirmDatePicker} />;
+            return (
+                <InteractiveMessageBubble 
+                    payload={{ ...activePicker, title: 'When is your birthday?' }} 
+                    onConfirm={confirmDatePicker} 
+                />
+            );
         }
         return null;
     }, [activePicker, confirmDatePicker]);
