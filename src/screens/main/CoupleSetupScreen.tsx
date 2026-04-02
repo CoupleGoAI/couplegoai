@@ -1,42 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    TouchableOpacity,
-    ActivityIndicator,
-    StyleSheet,
-} from 'react-native';
-import type { ListRenderItemInfo } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-    withSequence,
-    Easing,
-} from 'react-native-reanimated';
 import GradientButton from '@components/ui/GradientButton';
-import { ChatBubble } from '@components/chat/ChatBubble';
-import { TypingIndicator } from '@components/chat/TypingIndicator';
+import { DevMenu } from '@components/ui/DevMenu';
 import { HelpTypeChips } from '@components/chat/HelpTypeChips';
 import { InteractiveMessageBubble } from '@components/chat/interactive/InteractiveMessageBubble';
+import { ChatContainer } from '@components/ui/Chat';
 import { useCoupleSetup } from '@hooks/useCoupleSetup';
-import {
-    colors,
-    gradients,
-    fontFamilies,
-    letterSpacing,
-    shadows,
-    spacing,
-} from '@/theme/tokens';
+import { useAuth } from '@hooks/useAuth';
+import { useAuthStore } from '@store/authStore';
+import { colors, gradients, fontFamilies, letterSpacing } from '@/theme/tokens';
 import type { CoupleSetupScreenProps } from '@navigation/types';
-import type { CoupleSetupMessage } from '@store/coupleSetupStore';
+import type { ChatMessage } from '@/types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,25 +24,6 @@ function randomTypingDelay(): number {
     return Math.floor(Math.random() * (TYPING_DELAY_MAX_MS - TYPING_DELAY_MIN_MS + 1)) + TYPING_DELAY_MIN_MS;
 }
 
-// ─── Progress Dots ────────────────────────────────────────────────────────────
-
-interface ProgressDotsProps {
-    current: number;
-    total: number;
-}
-
-const ProgressDots = React.memo(({ current, total }: ProgressDotsProps) => (
-    <View className="flex-row gap-sm">
-        {Array.from({ length: total }, (_, i) => (
-            <View
-                key={i}
-                className={`w-sm h-sm rounded-full ${i < current ? 'bg-primary' : 'bg-borderDefault'}`}
-            />
-        ))}
-    </View>
-));
-ProgressDots.displayName = 'ProgressDots';
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactElement {
@@ -73,7 +31,6 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
         messages,
         isComplete,
         currentQuestion,
-        totalQuestions,
         isLoading,
         error,
         sendMessage,
@@ -81,27 +38,17 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
         retryComplete,
         hasActivePicker,
         confirmDatePicker,
+        partnerInfo,
     } = useCoupleSetup();
 
-    const [inputText, setInputText] = useState('');
     const [showTyping, setShowTyping] = useState(false);
-    const flatListRef = useRef<FlatList<CoupleSetupMessage>>(null);
+    const [isDevMenuVisible, setIsDevMenuVisible] = useState(false);
     const hasTriggeredFirst = useRef(false);
     const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Send button animation
-    const sendScale = useSharedValue(1);
-    const sendRotation = useSharedValue(0);
-    const sendAnimatedStyle = useAnimatedStyle(() => ({
-        transform: [
-            { scale: sendScale.value },
-            { rotate: `${sendRotation.value}deg` },
-        ],
-    }));
-
-    // Derived state: question 0 = dating start date (text), question 1 = help focus (chips)
-    const showChips = currentQuestion === 1 && !isComplete;
-    const showInput = currentQuestion === 0 && !isComplete;
+    const lastCompletionEmojiTapRef = useRef(0);
+    const { signOut } = useAuth();
+    const userAvatar = useAuthStore((s) => s.user?.avatarUrl ?? null);
+    const userName = useAuthStore((s) => s.user?.name ?? null);
 
     useEffect(() => {
         return () => {
@@ -123,29 +70,27 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
         }
     }, [isInitializing, messages.length, sendMessage]);
 
-    // Scroll to bottom
-    useEffect(() => {
-        if (messages.length === 0 && !showTyping) return;
-        const id = setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-        return () => clearTimeout(id);
-    }, [messages.length, showTyping]);
+    // Map to ChatMessage (exclude synthetic interactive entries)
+    const chatMessages = useMemo((): ChatMessage[] =>
+        messages
+            .filter((m) => m.role !== 'interactive')
+            .map((m) => ({
+                id: m.id,
+                role: m.role as 'user' | 'assistant' | 'partner',
+                text: m.content,
+                timestamp: m.createdAt,
+                senderName: m.senderName ?? undefined,
+            })),
+        [messages],
+    );
 
-    const handleSend = useCallback(() => {
-        const trimmed = inputText.trim();
-        if (!trimmed || isLoading || showTyping) return;
-        setInputText('');
-        sendScale.value = withSequence(
-            withTiming(1.25, { duration: 200, easing: Easing.out(Easing.cubic) }),
-            withTiming(1, { duration: 200, easing: Easing.in(Easing.cubic) }),
-        );
-        sendRotation.value = withSequence(
-            withTiming(720, { duration: 400, easing: Easing.out(Easing.quad) }),
-            withTiming(0, { duration: 1 }),
-        );
-        void sendMessage(trimmed);
-    }, [inputText, isLoading, showTyping, sendMessage, sendScale, sendRotation]);
+    // Extract active interactive picker payload if present
+    const activePicker = useMemo(
+        () => messages.find((m) => m.role === 'interactive')?.interactive ?? null,
+        [messages],
+    );
+
+    const showChips = currentQuestion === 1 && !isComplete;
 
     const handleChipSelect = useCallback(
         (value: string) => {
@@ -155,37 +100,35 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
         [isLoading, showTyping, sendMessage],
     );
 
-    const renderMessage = useCallback(
-        ({ item }: ListRenderItemInfo<CoupleSetupMessage>) => {
-            if (item.role === 'interactive' && item.interactive !== undefined) {
-                return (
-                    <InteractiveMessageBubble
-                        payload={item.interactive}
-                        onConfirm={confirmDatePicker}
-                    />
-                );
-            }
-            return (
-                <ChatBubble
-                    message={{
-                        id: item.id,
-                        role: item.role as 'user' | 'assistant' | 'partner',
-                        content: item.content,
-                        createdAt: item.createdAt,
-                        senderName: item.senderName,
-                    }}
-                />
-            );
-        },
-        [confirmDatePicker],
+    const handleSend = useCallback(
+        (text: string) => { void sendMessage(text); },
+        [sendMessage],
     );
 
-    const keyExtractor = useCallback((item: CoupleSetupMessage) => item.id, []);
+    // Footer slot: date picker → chips → nothing
+    const footerSlot = useMemo((): React.ReactElement | null => {
+        if (activePicker !== null) {
+            return <InteractiveMessageBubble payload={activePicker} onConfirm={confirmDatePicker} />;
+        }
+        if (showChips) {
+            return <HelpTypeChips onSelect={handleChipSelect} disabled={isLoading || showTyping} />;
+        }
+        return null;
+    }, [activePicker, showChips, confirmDatePicker, handleChipSelect, isLoading, showTyping]);
 
-    const handleRetry = useCallback(() => {
-        if (isLoading) return;
-        void sendMessage('');
-    }, [isLoading, sendMessage]);
+    const handleCompletionEmojiPress = useCallback(() => {
+        if (!__DEV__) return;
+        const now = Date.now();
+        if (now - lastCompletionEmojiTapRef.current < 350) {
+            setIsDevMenuVisible(true);
+        }
+        lastCompletionEmojiTapRef.current = now;
+    }, []);
+
+    const handleDevSignOut = useCallback(async () => {
+        setIsDevMenuVisible(false);
+        await signOut();
+    }, [signOut]);
 
     // ── Loading splash ─────────────────────────────────────────────────────────
     if (isInitializing) {
@@ -208,7 +151,14 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
             <LinearGradient colors={gradients.heroWash} style={styles.flex}>
                 <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
                     <View className="flex-1 items-center justify-center px-5 gap-xl">
-                        <Text style={styles.completionEmoji}>🎉</Text>
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            onPress={handleCompletionEmojiPress}
+                            accessibilityRole={__DEV__ ? 'button' : undefined}
+                            accessibilityLabel={__DEV__ ? 'Open developer menu' : undefined}
+                        >
+                            <Text style={styles.completionEmoji}>🎉</Text>
+                        </TouchableOpacity>
                         <Text
                             className="text-3xl font-bold text-foreground text-center"
                             style={styles.serifFont}
@@ -235,136 +185,40 @@ export function CoupleSetupScreen(_props: CoupleSetupScreenProps): React.ReactEl
                             loading={isLoading}
                         />
                     </View>
+                    <DevMenu
+                        visible={isDevMenuVisible}
+                        onClose={() => setIsDevMenuVisible(false)}
+                        onSignOut={() => { void handleDevSignOut(); }}
+                    />
                 </SafeAreaView>
             </LinearGradient>
         );
     }
 
     // ── Main chat UI ───────────────────────────────────────────────────────────
-    const sendDisabled = !inputText.trim() || isLoading || showTyping;
-
     return (
-        <LinearGradient colors={gradients.heroWash} style={styles.flex}>
-            <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.flex}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-                >
-                    {/* Header — no back button, no skip */}
-                    <View className="px-5 pt-md pb-lg border-b border-borderLight items-center gap-sm">
-                        <View className="flex-row items-center gap-sm">
-                            <Text style={styles.emoji}>💑</Text>
-                            <Text className="text-lg font-bold text-foreground">Couple Setup</Text>
-                        </View>
-                        <View
-                            className="items-center gap-xs"
-                            accessibilityLabel={`Question ${currentQuestion} of ${totalQuestions}`}
-                            accessibilityRole="progressbar"
-                        >
-                            <ProgressDots current={currentQuestion} total={totalQuestions} />
-                            <Text className="text-xs text-gray">
-                                {currentQuestion} of {totalQuestions}
-                            </Text>
-                        </View>
-                    </View>
-
-                    {/* Messages */}
-                    <FlatList
-                        ref={flatListRef}
-                        data={messages}
-                        renderItem={renderMessage}
-                        keyExtractor={keyExtractor}
-                        contentContainerStyle={styles.messageList}
-                        showsVerticalScrollIndicator={false}
-                        ListEmptyComponent={
-                            isLoading || showTyping ? null : (
-                                <View className="flex-1 items-center justify-center pt-2xl px-5 gap-md">
-                                    <Text className="text-base text-foreground text-center">
-                                        {error ? 'Connection issue' : 'Almost there!'}
-                                    </Text>
-                                    <Text className="text-sm text-gray text-center">
-                                        {error
-                                            ? 'We could not reach the server. Check your connection and try again.'
-                                            : 'Just two quick questions to set up your couple profile.'}
-                                    </Text>
-                                    {error && (
-                                        <GradientButton
-                                            label="Try again"
-                                            onPress={handleRetry}
-                                            size="sm"
-                                            loading={isLoading}
-                                            disabled={isLoading}
-                                            style={styles.emptyCta}
-                                        />
-                                    )}
-                                </View>
-                            )
-                        }
-                        ListFooterComponent={isLoading || showTyping ? <TypingIndicator /> : null}
-                    />
-
-                    {/* Error banner */}
-                    {error !== null && (
-                        <View className="flex-row items-center bg-errorBg mx-5 mb-sm rounded-sm px-lg py-sm gap-sm">
-                            <Ionicons name="alert-circle" size={16} color={colors.error} />
-                            <Text className="flex-1 text-sm font-medium text-error">{error}</Text>
-                        </View>
-                    )}
-
-                    {/* Help type chips — shown for question 1 */}
-                    {showChips && (
-                        <HelpTypeChips
-                            onSelect={handleChipSelect}
-                            disabled={isLoading || showTyping}
-                        />
-                    )}
-
-                    {/* Text input bar — shown for question 0 (dating start date) */}
-                    {showInput && (
-                        <View className="flex-row items-center px-5 py-md border-t border-borderLight gap-md">
-                            <TextInput
-                                value={inputText}
-                                onChangeText={setInputText}
-                                placeholder={hasActivePicker ? 'Choose a date above ↑' : 'Type your answer…'}
-                                placeholderTextColor={colors.gray}
-                                className="flex-1 bg-white rounded-md border-borderDefault px-lg py-md text-base text-foreground"
-                                style={styles.input}
-                                multiline
-                                maxLength={500}
-                                returnKeyType="send"
-                                onSubmitEditing={handleSend}
-                                blurOnSubmit
-                                editable={!isLoading && !showTyping && !hasActivePicker}
-                            />
-                            <Animated.View style={sendAnimatedStyle}>
-                                <TouchableOpacity
-                                    onPress={handleSend}
-                                    disabled={sendDisabled}
-                                    activeOpacity={0.75}
-                                    style={[styles.sendButton, sendDisabled && styles.sendButtonDisabled]}
-                                    accessibilityLabel="Send message"
-                                    accessibilityRole="button"
-                                >
-                                    <LinearGradient
-                                        colors={sendDisabled ? gradients.disabled : gradients.brand}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.sendGradient}
-                                    >
-                                        <Ionicons name="heart" size={22} color={colors.white} />
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        </View>
-                    )}
-                </KeyboardAvoidingView>
-            </SafeAreaView>
-        </LinearGradient>
+        <ChatContainer
+            messages={chatMessages}
+            isLoading={isLoading || showTyping}
+            mode="single"
+            isCoupled={false}
+            onModeChange={() => undefined}
+            title="Couple Setup"
+            titleEmoji="💑"
+            userAvatar={userAvatar}
+            userName={userName}
+            partnerAvatar={partnerInfo?.avatarUrl ?? null}
+            footerSlot={footerSlot}
+            inputPlaceholder={hasActivePicker ? 'Choose a date above ↑' : 'Type your answer…'}
+            inputDisabled={hasActivePicker}
+            hideInput={showChips}
+            onSend={handleSend}
+            error={error}
+        />
     );
 }
 
-// ─── Residual Styles ──────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     flex: { flex: 1 },
@@ -375,32 +229,4 @@ const styles = StyleSheet.create({
         letterSpacing: letterSpacing.tight,
     },
     completionSubtitle: { maxWidth: 280 },
-    messageList: {
-        flexGrow: 1,
-        paddingVertical: spacing.md,
-    },
-    emptyCta: { marginTop: spacing.sm },
-    input: {
-        maxHeight: 120,
-        borderWidth: 1.5,
-        ...shadows.sm,
-    },
-    sendButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        overflow: 'hidden' as const,
-        ...shadows.glowPrimary,
-    },
-    sendButtonDisabled: {
-        opacity: 0.5,
-        shadowOpacity: 0,
-        elevation: 0,
-    },
-    sendGradient: {
-        width: 44,
-        height: 44,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
-    },
 });

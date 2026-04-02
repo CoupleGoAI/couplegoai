@@ -49,6 +49,16 @@ Deno.serve(async (req) => {
   // MUST-NOT-3: service_role client only after auth verification
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Rate limiting: 5 requests per minute per user
+  const { data: withinLimit, error: rateLimitError } = await supabase.rpc("check_rate_limit", {
+    p_user_id: userId,
+    p_endpoint: "pairing-disconnect",
+    p_max_per_minute: 5,
+  });
+  if (rateLimitError || !withinLimit) {
+    return json({ error: "Too many requests. Please wait a moment." }, 429);
+  }
+
   // Read the user's current couple_id
   const { data: profile, error: profileError } = await supabase
     .from("profiles")

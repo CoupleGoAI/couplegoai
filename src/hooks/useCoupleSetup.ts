@@ -7,6 +7,7 @@ import {
     fetchPartnerInfo,
     subscribeToPartnerCoupleSetupMessages,
     subscribeToCoupleCompletion,
+    subscribeToCoupleDatingStart,
 } from '@data/coupleChatApi';
 import { supabase } from '@data/supabase';
 import { sanitizeMessage } from '@domain/onboarding/validation';
@@ -63,6 +64,7 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
     const setUser = useAuthStore((s) => s.setUser);
     const userId = useAuthStore((s) => s.user?.id);
     const coupleId = useAuthStore((s) => s.user?.coupleId);
+    const authCoupleSetupCompleted = useAuthStore((s) => s.user?.coupleSetupCompleted ?? false);
 
     const hasInitialized = useRef(false);
 
@@ -107,6 +109,17 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
         });
         return () => { void supabase.removeChannel(channel); };
     }, [coupleId, userId, setUser]);
+
+    // Clear the date picker when dating_start_date is set on the couple row
+    // (handles the case where the other partner submitted the date first)
+    useEffect(() => {
+        if (!coupleId) return;
+        const channel = subscribeToCoupleDatingStart(coupleId, () => {
+            setActivePicker(null);
+            setCurrentQuestion(1);
+        });
+        return () => { void supabase.removeChannel(channel); };
+    }, [coupleId, setCurrentQuestion]);
 
     // Derive display messages — append synthetic interactive message when a picker is active
     const displayMessages = useMemo((): CoupleSetupMessage[] => {
@@ -200,9 +213,15 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
         }
         setLoading(true);
         setError(null);
+
+        // Small delay to ensure DB transaction from couple-setup edge function has committed
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         const profileResult = await authData.fetchProfile(userId);
         if (profileResult.ok) {
             setUser(profileResult.data);
+            // If profile still doesn't show completion, the DB might be slow — navigation
+            // will happen once auth store's coupleSetupCompleted becomes true.
         } else {
             setError('Could not connect. Please try again.');
         }
@@ -210,12 +229,17 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
     }, [userId, setUser, setLoading, setError]);
 
     // Initialize once: reset store so we always start fresh
+    // If user is already coupled with setup complete, mark as complete immediately
     useEffect(() => {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
         reset();
+        // If auth store already shows couple setup as complete, skip the flow
+        if (authCoupleSetupCompleted) {
+            setIsComplete(true);
+        }
         setIsInitializing(false);
-    }, []);
+    }, [authCoupleSetupCompleted, reset, setIsComplete]);
 
     return {
         messages: displayMessages,

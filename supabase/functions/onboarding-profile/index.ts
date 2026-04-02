@@ -151,6 +151,16 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // ── Rate limiting: 10 requests per minute per user ───────────────────
+    const { data: withinLimit, error: rateLimitError } = await supabase.rpc("check_rate_limit", {
+      p_user_id: userId,
+      p_endpoint: "onboarding-profile",
+      p_max_per_minute: 10,
+    });
+    if (rateLimitError || !withinLimit) {
+      return json({ error: "Too many requests. Please wait a moment." }, 429);
+    }
+
     // ── Parse request body ───────────────────────────────────────────────
     let message = "";
     try {

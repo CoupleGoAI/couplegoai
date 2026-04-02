@@ -59,9 +59,9 @@ const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 const PROMPTS = {
     greet: [
-        "Congrats on connecting! 💑 Let's set things up. When did you and your partner start dating? (e.g. June 2022 or 2022-06-15)",
-        "You two are official! 🥰 Now tell me — when did your love story begin? Type the date however you like.",
-        "Amazing, you're paired up! 💕 One quick thing — when did you start dating? Any format works!",
+        "Congrats on connecting! 💑 Let's set things up. Please choose the date when you started dating below.",
+        "You two are official! 🥰 When did your love story begin? Pick the date below.",
+        "Amazing, you're paired up! 💕 Please choose the date you started dating below.",
     ],
     askHelpType: [
         "Love it! 🌟 What area would you like help with? Pick one:\n\n• Communication\n• Conflict\n• Trust\n• Emotional connection\n• Intimacy\n• Other",
@@ -208,6 +208,16 @@ Deno.serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+        // ── Rate limiting: 10 requests per minute per user ─────────────────
+        const { data: withinLimit, error: rateLimitError } = await supabase.rpc("check_rate_limit", {
+            p_user_id: userId,
+            p_endpoint: "couple-setup",
+            p_max_per_minute: 10,
+        });
+        if (rateLimitError || !withinLimit) {
+            return errorResponse("Too many requests. Please wait a moment.", 429);
+        }
+
         // ── Parse body ──────────────────────────────────────────────────────
         let message = "";
         try {
@@ -228,7 +238,7 @@ Deno.serve(async (req) => {
 
         if (profileError || !profile) {
             logError("PROFILE_FETCH_FAILED", profileError, { userId });
-            return errorResponse("Profile not found", 404, profileError);
+            return errorResponse("Profile not found", 404);
         }
 
         const typedProfile = profile as ProfileRow;
@@ -252,7 +262,7 @@ Deno.serve(async (req) => {
 
         if (coupleError || !coupleData) {
             logError("COUPLE_FETCH_FAILED", coupleError, { userId, coupleId });
-            return errorResponse("Couple not found", 404, coupleError);
+            return errorResponse("Couple not found", 404);
         }
 
         const couple = coupleData as CoupleRow;
@@ -266,8 +276,24 @@ Deno.serve(async (req) => {
             });
         }
 
-        // ── Start flow (empty message = greeting / reset) ───────────────────
+        // ── Start flow (empty message = greeting for fresh start, or resume) ─
         if (message.length === 0) {
+            const currentStep = deriveStep(couple);
+
+            // Only reset when no progress has been made yet.
+            // If setup is in progress, resume at the current step instead of
+            // wiping data that the other partner may have already submitted.
+            if (currentStep > 0) {
+                const resumeReply = currentStep === 1
+                    ? pick(PROMPTS.askHelpType)
+                    : pick(PROMPTS.greet);
+                return json({
+                    reply: resumeReply,
+                    questionIndex: currentStep,
+                    isComplete: false,
+                });
+            }
+
             const { error: resetError } = await supabase
                 .from("couples")
                 .update({
@@ -278,7 +304,7 @@ Deno.serve(async (req) => {
 
             if (resetError) {
                 logError("RESET_COUPLE_FAILED", resetError, { userId, coupleId });
-                return errorResponse("Failed to reset couple setup", 500, resetError);
+                return errorResponse("Failed to reset couple setup", 500);
             }
 
             const reply = pick(PROMPTS.greet);
@@ -288,8 +314,8 @@ Deno.serve(async (req) => {
             ]);
 
             if (insertGreetingError) {
-                logError("INSERT_GREETING_FAILED", insertGreetingError, { userId, reply });
-                return errorResponse("Failed to save greeting message", 500, insertGreetingError);
+                logError("INSERT_GREETING_FAILED", insertGreetingError, { userId });
+                return errorResponse("Failed to save greeting message", 500);
             }
 
             return json({
@@ -313,7 +339,7 @@ Deno.serve(async (req) => {
 
                 if (insertError) {
                     logError("INSERT_REASK_DATING_FAILED", insertError, { userId, message });
-                    return errorResponse("Failed to save messages", 500, insertError);
+                    return errorResponse("Failed to save messages", 500);
                 }
 
                 return json({
@@ -332,7 +358,7 @@ Deno.serve(async (req) => {
 
             if (msgError) {
                 logError("INSERT_STEP0_MESSAGES_FAILED", msgError, { userId, message });
-                return errorResponse("Failed to save messages", 500, msgError);
+                return errorResponse("Failed to save messages", 500);
             }
 
             const { error: updateError } = await supabase
@@ -346,7 +372,7 @@ Deno.serve(async (req) => {
                     coupleId,
                     dating_start_date: result.value,
                 });
-                return errorResponse("Failed to update couple", 500, updateError);
+                return errorResponse("Failed to update couple", 500);
             }
 
             return json({
@@ -367,7 +393,7 @@ Deno.serve(async (req) => {
 
                 if (insertError) {
                     logError("INSERT_REASK_HELP_FAILED", insertError, { userId, message });
-                    return errorResponse("Failed to save messages", 500, insertError);
+                    return errorResponse("Failed to save messages", 500);
                 }
 
                 return json({
@@ -386,7 +412,7 @@ Deno.serve(async (req) => {
 
             if (msgError) {
                 logError("INSERT_STEP1_MESSAGES_FAILED", msgError, { userId, message });
-                return errorResponse("Failed to save messages", 500, msgError);
+                return errorResponse("Failed to save messages", 500);
             }
 
             const { error: updateError } = await supabase
@@ -400,7 +426,7 @@ Deno.serve(async (req) => {
                     coupleId,
                     help_focus: result.value,
                 });
-                return errorResponse("Failed to update couple", 500, updateError);
+                return errorResponse("Failed to update couple", 500);
             }
 
             return json({
@@ -423,16 +449,6 @@ Deno.serve(async (req) => {
                 : err,
         );
 
-        return errorResponse(
-            "Internal server error",
-            500,
-            err instanceof Error
-                ? {
-                    name: err.name,
-                    message: err.message,
-                    stack: err.stack,
-                }
-                : String(err),
-        );
+        return errorResponse("Internal server error", 500);
     }
 });
