@@ -30,13 +30,6 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
-
       - name: Determine Android release
         id: prepare
         env:
@@ -85,6 +78,14 @@ jobs:
         if: steps.prepare.outputs.should_release == 'true'
         run: npx expo prebuild --platform android --non-interactive --no-install --clean
 
+      - name: Setup Java
+        if: steps.prepare.outputs.should_release == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
       - name: Restore Android keystore
         if: steps.prepare.outputs.should_release == 'true'
         env:
@@ -92,7 +93,7 @@ jobs:
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
 
-      - name: Build Android APK with EAS
+      - name: Build Android APK with Gradle
         if: steps.prepare.outputs.should_release == 'true'
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
