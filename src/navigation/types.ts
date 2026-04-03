@@ -1,6 +1,7 @@
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { GameLobbyParams, GameSessionParams, GameResultsParams } from '@/types/games';
 
 // --- Auth Stack ---
 export type AuthStackParamList = {
@@ -30,9 +31,9 @@ export type RootStackParamList = {
     AiChat: undefined;
     Profile: undefined;
     DisconnectConfirm: undefined;
-    GameWouldYouRather: undefined;
-    GameThisOrThat: undefined;
-    GameLoveCheckIn: undefined;
+    GameLobby: GameLobbyParams;
+    GameSession: GameSessionParams;
+    GameResults: GameResultsParams;
 };
 
 // Navigation prop helpers
@@ -79,3 +80,8 @@ export type PlayScreenNavProp = CompositeNavigationProp<
     BottomTabNavigationProp<MainTabParamList, 'Play'>,
     NativeStackNavigationProp<RootStackParamList>
 >;
+
+// Game screen props
+export type GameLobbyScreenProps = NativeStackScreenProps<RootStackParamList, 'GameLobby'>;
+export type GameSessionScreenProps = NativeStackScreenProps<RootStackParamList, 'GameSession'>;
+export type GameResultsScreenProps = NativeStackScreenProps<RootStackParamList, 'GameResults'>;

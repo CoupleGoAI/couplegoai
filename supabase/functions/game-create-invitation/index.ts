@@ -1,9 +1,5 @@
 // =============================================================================
 // game-create-invitation — Create a game invitation for the user's partner
-//
-// Auth: JWT verified via Auth REST API (ES256 compatible)
-// User ID derived from auth response only — never from request body
-// Service role client after auth verification
 // =============================================================================
 
 import "@supabase/functions-js/edge-runtime.d.ts";
@@ -22,17 +18,12 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-const VALID_GAME_TYPES = ["how_well_do_you_know_me", "would_you_rather", "this_or_that"];
-
-interface RequestBody {
-  gameType: string;
-  categoryKey: string;
-  roundManifest: Array<{
-    promptId: string;
-    promptPayload: Record<string, unknown>;
-    categoryKey: string;
-  }>;
-}
+const VALID_GAME_TYPES = [
+  "would_you_rather",
+  "who_is_more_likely",
+  "this_or_that",
+  "never_have_i_ever",
+];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -61,36 +52,17 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid request body" }, 400);
   }
 
-  const { gameType, categoryKey, roundManifest } = body as RequestBody;
+  const { gameType, categoryKey } = body as {
+    gameType: string;
+    categoryKey: string;
+  };
 
-  if (
-    typeof gameType !== "string" ||
-    !VALID_GAME_TYPES.includes(gameType)
-  ) {
+  if (typeof gameType !== "string" || !VALID_GAME_TYPES.includes(gameType)) {
     return json({ error: "Invalid game type" }, 400);
   }
 
   if (typeof categoryKey !== "string" || categoryKey.length === 0) {
     return json({ error: "Invalid category" }, 400);
-  }
-
-  if (
-    !Array.isArray(roundManifest) ||
-    roundManifest.length === 0 ||
-    roundManifest.length > 20
-  ) {
-    return json({ error: "Invalid round manifest" }, 400);
-  }
-
-  for (const round of roundManifest) {
-    if (
-      typeof round.promptId !== "string" ||
-      typeof round.promptPayload !== "object" ||
-      round.promptPayload === null ||
-      typeof round.categoryKey !== "string"
-    ) {
-      return json({ error: "Invalid round manifest entry" }, 400);
-    }
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -119,12 +91,10 @@ Deno.serve(async (req) => {
     return json({ error: "Couple not found" }, 404);
   }
 
-  const partnerId =
-    (couple as { partner1_id: string; partner2_id: string }).partner1_id === userId
-      ? (couple as { partner1_id: string; partner2_id: string }).partner2_id
-      : (couple as { partner1_id: string; partner2_id: string }).partner1_id;
+  const c = couple as { partner1_id: string; partner2_id: string };
+  const partnerId = c.partner1_id === userId ? c.partner2_id : c.partner1_id;
 
-  // Check for existing pending invitation for this couple
+  // Check for existing pending invitation
   const { data: existingInvite } = await supabase
     .from("game_invitations")
     .select("id")
@@ -150,10 +120,8 @@ Deno.serve(async (req) => {
     return json({ error: "There is already an active game session" }, 409);
   }
 
-  // Calculate expiration (15 minutes)
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  // Create invitation with round manifest stored as metadata
   const { data: invitation, error: inviteError } = await supabase
     .from("game_invitations")
     .insert({
@@ -164,14 +132,29 @@ Deno.serve(async (req) => {
       category_key: categoryKey,
       status: "pending",
       expires_at: expiresAt,
-      metadata: { roundManifest },
     })
-    .select("id, couple_id, from_user_id, to_user_id, game_type, category_key, status, expires_at, created_at")
+    .select("*")
     .single();
 
   if (inviteError || !invitation) {
     return json({ error: "Failed to create invitation" }, 500);
   }
 
-  return json({ invitation });
+  return json(mapInvitation(invitation));
 });
+
+function mapInvitation(r: Record<string, unknown>) {
+  return {
+    id: r.id,
+    coupleId: r.couple_id,
+    fromUserId: r.from_user_id,
+    toUserId: r.to_user_id,
+    gameType: r.game_type,
+    categoryKey: r.category_key,
+    status: r.status,
+    expiresAt: r.expires_at,
+    createdAt: r.created_at,
+    respondedAt: r.responded_at ?? null,
+    sessionId: r.session_id ?? null,
+  };
+}

@@ -40,3 +40,45 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/pairing-generate/deno.json"
 entrypoint = "./functions/pairing-generate/index.ts"
+
+[functions.game-create-invitation]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-create-invitation/deno.json"
+entrypoint = "./functions/game-create-invitation/index.ts"
+
+[functions.game-respond-invitation]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-respond-invitation/deno.json"
+entrypoint = "./functions/game-respond-invitation/index.ts"
+
+[functions.game-cancel-invitation]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-cancel-invitation/deno.json"
+entrypoint = "./functions/game-cancel-invitation/index.ts"
+
+[functions.game-submit-answer]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-submit-answer/deno.json"
+entrypoint = "./functions/game-submit-answer/index.ts"
+
+[functions.game-session-snapshot]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-session-snapshot/deno.json"
+entrypoint = "./functions/game-session-snapshot/index.ts"
+
+[functions.game-leave-session]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-leave-session/deno.json"
+entrypoint = "./functions/game-leave-session/index.ts"
+
+[functions.game-history]
+enabled = true
+verify_jwt = false
+import_map = "./functions/game-history/deno.json"
+entrypoint = "./functions/game-history/index.ts"

@@ -100,7 +100,7 @@ export function useGameInvite(): UseGameInviteReturn {
     const prompts = selectPrompts(invite.gameType, invite.categoryKey, def.defaultRounds, seed);
     const roundManifest = prompts.map((p) => ({
       promptId: p.id,
-      promptPayload: buildPromptPayload(invite.gameType, p),
+      promptPayload: buildPromptPayload(invite.gameType, p as unknown as Record<string, unknown>),
       categoryKey: p.category,
     }));
 

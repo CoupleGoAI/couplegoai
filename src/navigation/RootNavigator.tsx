@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@navigation/types';
@@ -16,9 +17,10 @@ import MainTabNavigator from '@navigation/MainTabNavigator';
 import { AiChatScreen } from '@screens/main/AiChatScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
 import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
-import { WouldYouRatherScreen } from '@screens/main/games/WouldYouRatherScreen';
-import { ThisOrThatScreen } from '@screens/main/games/ThisOrThatScreen';
-import { LoveCheckInScreen } from '@screens/main/games/LoveCheckInScreen';
+import GameLobbyScreen from '@screens/main/games/GameLobbyScreen';
+import GameSessionScreen from '@screens/main/games/GameSessionScreen';
+import GameResultsScreen from '@screens/main/games/GameResultsScreen';
+import { GameInviteHost } from '@components/ui/GameInviteHost';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -42,8 +44,11 @@ export default function RootNavigator() {
         return <SplashScreen />;
     }
 
+    const showInviteHost = isAuthenticated && coupleId !== null && coupleSetupCompleted;
+
     return (
         <NavigationContainer>
+            <View style={navStyles.root}>
             <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
                 {!isAuthenticated ? (
                     <Stack.Screen name="Auth" component={AuthNavigator} />
@@ -100,23 +105,29 @@ export default function RootNavigator() {
                             options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
                         />
                         <Stack.Screen
-                            name="GameWouldYouRather"
-                            component={WouldYouRatherScreen}
+                            name="GameLobby"
+                            component={GameLobbyScreen}
                             options={{ animation: 'slide_from_right' }}
                         />
                         <Stack.Screen
-                            name="GameThisOrThat"
-                            component={ThisOrThatScreen}
-                            options={{ animation: 'slide_from_right' }}
+                            name="GameSession"
+                            component={GameSessionScreen}
+                            options={{ animation: 'slide_from_right', gestureEnabled: false }}
                         />
                         <Stack.Screen
-                            name="GameLoveCheckIn"
-                            component={LoveCheckInScreen}
-                            options={{ animation: 'slide_from_right' }}
+                            name="GameResults"
+                            component={GameResultsScreen}
+                            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
                         />
                     </>
                 )}
             </Stack.Navigator>
+            {showInviteHost ? <GameInviteHost /> : null}
+            </View>
         </NavigationContainer>
     );
 }
+
+const navStyles = StyleSheet.create({
+    root: { flex: 1 },
+});

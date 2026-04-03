@@ -1,8 +1,6 @@
 // =============================================================================
 // game-respond-invitation — Accept or decline a game invitation
-//
-// Auth: JWT verified via Auth REST API (ES256 compatible)
-// On accept: creates session, players, rounds; sets session to active
+// On accept: creates session, players, rounds from client-provided manifest
 // =============================================================================
 
 import "@supabase/functions-js/edge-runtime.d.ts";
@@ -19,15 +17,6 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
-}
-
-function generateSessionSeed(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let seed = "";
-  for (let i = 0; i < 16; i++) {
-    seed += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return seed;
 }
 
 interface RoundManifestEntry {
@@ -63,89 +52,77 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid request body" }, 400);
   }
 
-  const { invitationId, response } = body as {
+  const parsed = body as {
     invitationId: string;
     response: string;
+    roundManifest?: RoundManifestEntry[];
   };
 
-  if (typeof invitationId !== "string" || invitationId.length === 0) {
+  if (typeof parsed.invitationId !== "string") {
     return json({ error: "Invalid invitation ID" }, 400);
   }
-
-  if (response !== "accept" && response !== "decline") {
+  if (parsed.response !== "accept" && parsed.response !== "decline") {
     return json({ error: "Response must be 'accept' or 'decline'" }, 400);
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Fetch invitation
   const { data: invitation, error: inviteError } = await supabase
     .from("game_invitations")
     .select("*")
-    .eq("id", invitationId)
+    .eq("id", parsed.invitationId)
     .single();
 
   if (inviteError || !invitation) {
     return json({ error: "Invitation not found" }, 404);
   }
 
-  // Verify the invitation is addressed to this user
-  if ((invitation as Record<string, unknown>).to_user_id !== userId) {
+  const inv = invitation as Record<string, unknown>;
+
+  if (inv.to_user_id !== userId) {
     return json({ error: "Invitation not found" }, 404);
   }
-
-  if ((invitation as Record<string, unknown>).status !== "pending") {
+  if (inv.status !== "pending") {
     return json({ error: "Invitation is no longer pending" }, 410);
   }
-
-  // Check expiration
-  const expiresAt = (invitation as Record<string, unknown>).expires_at as string;
-  if (new Date(expiresAt) < new Date()) {
+  if (new Date(inv.expires_at as string) < new Date()) {
     await supabase
       .from("game_invitations")
       .update({ status: "expired" })
-      .eq("id", invitationId);
+      .eq("id", parsed.invitationId);
     return json({ error: "Invitation has expired" }, 410);
   }
 
   const nowIso = new Date().toISOString();
 
-  // Handle decline
-  if (response === "decline") {
-    const { error: declineError } = await supabase
+  if (parsed.response === "decline") {
+    await supabase
       .from("game_invitations")
       .update({ status: "declined", responded_at: nowIso })
-      .eq("id", invitationId);
-
-    if (declineError) {
-      return json({ error: "Failed to decline invitation" }, 500);
-    }
-
-    return json({ status: "declined" });
+      .eq("id", parsed.invitationId);
+    return json({ declined: true });
   }
 
-  // Handle accept
-  const inv = invitation as Record<string, unknown>;
+  // Accept — need round manifest
+  const roundManifest = parsed.roundManifest;
+  if (!Array.isArray(roundManifest) || roundManifest.length === 0) {
+    return json({ error: "Round manifest required for accept" }, 400);
+  }
+
   const coupleId = inv.couple_id as string;
   const fromUserId = inv.from_user_id as string;
   const gameType = inv.game_type as string;
   const categoryKey = inv.category_key as string;
-  const metadata = inv.metadata as { roundManifest?: RoundManifestEntry[] } | null;
-
-  const roundManifest = metadata?.roundManifest;
-  if (!Array.isArray(roundManifest) || roundManifest.length === 0) {
-    return json({ error: "Invitation is missing round data" }, 400);
-  }
-
   const totalRounds = roundManifest.length;
-  const sessionSeed = generateSessionSeed();
 
-  // Create game session
+  const sessionSeed = crypto.randomUUID().slice(0, 16);
+
+  // Create session
   const { data: session, error: sessionError } = await supabase
     .from("game_sessions")
     .insert({
       couple_id: coupleId,
-      invitation_id: invitationId,
+      invitation_id: parsed.invitationId,
       game_type: gameType,
       category_key: categoryKey,
       status: "active",
@@ -155,107 +132,115 @@ Deno.serve(async (req) => {
       current_round_index: 0,
       total_rounds: totalRounds,
       session_seed: sessionSeed,
-      version: 1,
     })
-    .select("id")
+    .select("*")
     .single();
 
   if (sessionError || !session) {
     return json({ error: "Failed to create game session" }, 500);
   }
 
-  const sessionId = (session as { id: string }).id;
+  const s = session as Record<string, unknown>;
+  const sessionId = s.id as string;
 
   // Create players
-  const { error: playersError } = await supabase
-    .from("game_session_players")
-    .insert([
-      {
-        session_id: sessionId,
-        user_id: fromUserId,
-        state: "playing",
-        joined_at: nowIso,
-        ready_at: nowIso,
-        last_seen_at: nowIso,
-      },
-      {
-        session_id: sessionId,
-        user_id: userId,
-        state: "playing",
-        joined_at: nowIso,
-        ready_at: nowIso,
-        last_seen_at: nowIso,
-      },
-    ]);
+  await supabase.from("game_session_players").insert([
+    { session_id: sessionId, user_id: fromUserId, state: "playing", last_seen_at: nowIso },
+    { session_id: sessionId, user_id: userId, state: "playing", last_seen_at: nowIso },
+  ]);
 
-  if (playersError) {
-    // Cleanup session on failure
-    await supabase
-      .from("game_sessions")
-      .update({ status: "cancelled", cancelled_at: nowIso })
-      .eq("id", sessionId);
-    return json({ error: "Failed to create player entries" }, 500);
-  }
+  // Create rounds
+  const roundInserts = roundManifest.map((entry, i) => ({
+    session_id: sessionId,
+    round_index: i,
+    status: i === 0 ? "open" : "pending",
+    prompt_id: entry.promptId,
+    prompt_payload: entry.promptPayload,
+    category_key: entry.categoryKey,
+    started_at: i === 0 ? nowIso : null,
+  }));
 
-  // Create rounds — first round is 'open', rest are 'pending'
-  const roundInserts = roundManifest.map(
-    (entry: RoundManifestEntry, index: number) => ({
-      session_id: sessionId,
-      round_index: index,
-      status: index === 0 ? "open" : "pending",
-      prompt_id: entry.promptId,
-      prompt_payload: entry.promptPayload,
-      category_key: entry.categoryKey,
-      started_at: index === 0 ? nowIso : null,
-    }),
-  );
-
-  const { error: roundsError } = await supabase
-    .from("game_rounds")
-    .insert(roundInserts);
-
-  if (roundsError) {
-    await supabase
-      .from("game_sessions")
-      .update({ status: "cancelled", cancelled_at: nowIso })
-      .eq("id", sessionId);
-    return json({ error: "Failed to create game rounds" }, 500);
-  }
+  await supabase.from("game_rounds").insert(roundInserts);
 
   // Update invitation
-  const { error: invUpdateError } = await supabase
+  await supabase
     .from("game_invitations")
-    .update({
-      status: "accepted",
-      responded_at: nowIso,
-      session_id: sessionId,
-    })
-    .eq("id", invitationId);
+    .update({ status: "accepted", responded_at: nowIso, session_id: sessionId })
+    .eq("id", parsed.invitationId);
 
-  if (invUpdateError) {
-    // Non-fatal — session is already created
-  }
-
-  // Fetch full session snapshot to return
-  const { data: rounds } = await supabase
-    .from("game_rounds")
-    .select("id, round_index, status, prompt_id, prompt_payload, category_key, started_at, revealed_at")
-    .eq("session_id", sessionId)
-    .order("round_index", { ascending: true });
-
-  return json({
-    session: {
-      id: sessionId,
-      coupleId,
-      gameType,
-      categoryKey,
-      status: "active",
-      currentRoundIndex: 0,
-      totalRounds,
-      sessionSeed,
-      startedAt: nowIso,
-    },
-    rounds: rounds ?? [],
-    players: [fromUserId, userId],
-  });
+  // Return full snapshot
+  return json(await buildSnapshot(supabase, sessionId, s));
 });
+
+async function buildSnapshot(
+  supabase: ReturnType<typeof createClient>,
+  sessionId: string,
+  s: Record<string, unknown>,
+) {
+  const [{ data: players }, { data: rounds }, { data: answers }] =
+    await Promise.all([
+      supabase.from("game_session_players").select("*").eq("session_id", sessionId),
+      supabase
+        .from("game_rounds")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("round_index", { ascending: true }),
+      supabase.from("game_answers").select("*").eq("session_id", sessionId),
+    ]);
+
+  return {
+    id: s.id,
+    coupleId: s.couple_id,
+    invitationId: s.invitation_id ?? null,
+    gameType: s.game_type,
+    categoryKey: s.category_key,
+    status: s.status,
+    createdBy: s.created_by,
+    startedAt: s.started_at ?? null,
+    completedAt: s.completed_at ?? null,
+    cancelledAt: s.cancelled_at ?? null,
+    lastActivityAt: s.last_activity_at,
+    currentRoundIndex: s.current_round_index,
+    totalRounds: s.total_rounds,
+    version: s.version,
+    players: (players ?? []).map(mapPlayer),
+    rounds: (rounds ?? []).map(mapRound),
+    answers: (answers ?? []).map(mapAnswer),
+  };
+}
+
+function mapPlayer(r: Record<string, unknown>) {
+  return {
+    userId: r.user_id,
+    state: r.state,
+    joinedAt: r.joined_at,
+    readyAt: r.ready_at ?? null,
+    lastSeenAt: r.last_seen_at,
+    disconnectedAt: r.disconnected_at ?? null,
+  };
+}
+
+function mapRound(r: Record<string, unknown>) {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    roundIndex: r.round_index,
+    status: r.status,
+    promptId: r.prompt_id,
+    promptPayload: r.prompt_payload,
+    categoryKey: r.category_key,
+    startedAt: r.started_at ?? null,
+    revealedAt: r.revealed_at ?? null,
+  };
+}
+
+function mapAnswer(r: Record<string, unknown>) {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    roundId: r.round_id,
+    userId: r.user_id,
+    answerPayload: r.answer_payload,
+    answeredAt: r.answered_at,
+  };
+}
