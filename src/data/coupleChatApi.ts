@@ -140,7 +140,7 @@ export function subscribeToCoupleChatMessages(
 
 export interface CoupleSetupIncomingMessage {
     id: string;
-    role: 'user';
+    role: 'user' | 'assistant';
     content: string;
     createdAt: number;
     senderName: string | null;
@@ -165,13 +165,14 @@ export function subscribeToPartnerCoupleSetupMessages(
             (payload) => {
                 const row = payload.new as RealtimeMessagePayload;
                 if (row.conversation_type !== 'couple_setup') return;
-                // Only mirror the partner's user messages.
-                // Assistant messages are generated per user and would appear duplicated otherwise.
-                if (row.role !== 'user') return;
+                if (row.role !== 'user' && row.role !== 'assistant') return;
+                // #region agent log
+                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H4',location:'src/data/coupleChatApi.ts:subscribeToPartnerCoupleSetupMessages',message:'Raw couple_setup realtime row accepted',data:{partnerId,role:row.role,contentPreview:row.content.slice(0,48)},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
 
                 onInsert({
                     id: row.id,
-                    role: 'user',
+                    role: row.role,
                     content: row.content,
                     createdAt: new Date(row.created_at).getTime(),
                     senderName: row.role === 'user' ? (partnerName ?? 'Partner') : null,

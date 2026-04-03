@@ -181,6 +181,37 @@ async function insertMessages(
     return { error };
 }
 
+async function insertAssistantResumeIfNeeded(
+    supabase: ReturnType<typeof createClient>,
+    userId: string,
+    content: string,
+): Promise<{ error: unknown | null }> {
+    const { data: lastAssistant, error: lastAssistantError } = await supabase
+        .from("messages")
+        .select("content")
+        .eq("user_id", userId)
+        .eq("conversation_type", "couple_setup")
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (lastAssistantError) {
+        return { error: lastAssistantError };
+    }
+
+    const typedLastAssistant = lastAssistant as { content: string } | null;
+    if (typedLastAssistant?.content === content) {
+        return { error: null };
+    }
+
+    const { error: insertError } = await insertMessages(supabase, userId, [
+        { role: "assistant", content },
+    ]);
+
+    return { error: insertError };
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -302,6 +333,20 @@ Deno.serve(async (req) => {
                 const resumeReply = currentStep === 1
                     ? pick(PROMPTS.askHelpType)
                     : pick(PROMPTS.greet);
+
+                const { error: resumeInsertError } = await insertAssistantResumeIfNeeded(
+                    supabase,
+                    userId,
+                    resumeReply,
+                );
+                if (resumeInsertError) {
+                    logError("INSERT_RESUME_ASSISTANT_FAILED", resumeInsertError, {
+                        userId,
+                        currentStep,
+                    });
+                    return errorResponse("Failed to save resume message", 500);
+                }
+
                 return json({
                     reply: resumeReply,
                     questionIndex: currentStep,

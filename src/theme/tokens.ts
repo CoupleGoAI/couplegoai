@@ -46,6 +46,24 @@ export const colors = {
     /** Optional elevated surface tint */
     surface: 'rgba(244, 139, 166, 0.06)',
 
+    // ── Game surfaces & accents ──
+    /** Dark elevated surface — game panels, lobby cards */
+    surfaceElevated: '#f8f5fb',
+    /** Darker surface — game session backgrounds */
+    surfaceDark: '#1e1230',
+    /** High-contrast surface for overlays */
+    surfaceContrast: '#2a1b40',
+    /** Warm accent for game highlights, streaks */
+    accentWarm: '#f5a623',
+    /** Soft success — gentle match indicators */
+    successSoft: '#e8f8ee',
+    /** Scrim overlay for modals, sheets */
+    overlayScrim: 'rgba(30, 18, 48, 0.6)',
+    /** Game round card background */
+    surfaceGame: '#faf8fd',
+    /** Reveal animation highlight */
+    revealGlow: 'rgba(244, 139, 166, 0.15)',
+
     // ── Functional ──
     success: '#22c55e',
     successBg: '#dcfce7',

@@ -83,7 +83,34 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
     const authCoupleSetupCompleted = useAuthStore((s) => s.user?.coupleSetupCompleted ?? false);
 
     const hasInitialized = useRef(false);
-    const sendMessageRef = useRef<((text: string) => Promise<void>) | undefined>(undefined);
+    const isSendingRef = useRef(false);
+
+    const syncStepFromCoupleRow = useCallback(async (): Promise<void> => {
+        if (!coupleId) return;
+        const { data, error: coupleError } = await supabase
+            .from('couples')
+            .select('dating_start_date, help_focus')
+            .eq('id', coupleId)
+            .maybeSingle();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'post-fix',hypothesisId:'H3-H6',location:'src/hooks/useCoupleSetup.ts:syncStepFromCoupleRow',message:'Fetched couple row for step reconciliation',data:{coupleId,hasError:!!coupleError,hasDatingStart:!!(data as { dating_start_date?: string | null } | null)?.dating_start_date,hasHelpFocus:!!(data as { help_focus?: string | null } | null)?.help_focus,currentQuestionBefore:currentQuestion,hasActivePickerBefore:activePicker!==null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
+        if (coupleError || !data) return;
+
+        const typed = data as { dating_start_date: string | null; help_focus: string | null };
+        if (typed.help_focus) {
+            setCurrentQuestion(2);
+            setIsComplete(true);
+            setActivePicker(null);
+            return;
+        }
+        if (typed.dating_start_date) {
+            setCurrentQuestion(Math.max(currentQuestion, 1));
+            setActivePicker(null);
+        }
+    }, [coupleId, currentQuestion, activePicker, setCurrentQuestion, setIsComplete]);
 
     // Fetch partner info once coupled
     useEffect(() => {
@@ -103,18 +130,22 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
             partnerInfo.id,
             partnerInfo.name,
             (msg) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H2-H4',location:'src/hooks/useCoupleSetup.ts:partnerRealtime',message:'Partner couple_setup realtime message received',data:{source:'realtime',incomingRole:msg.role,contentPreview:msg.content.slice(0,48),currentQuestion,hasActivePicker:activePicker!==null},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 const incoming: CoupleSetupMessage = {
                     id: msg.id,
-                    role: 'partner',
+                    role: msg.role === 'assistant' ? 'assistant' : 'partner',
                     content: msg.content,
                     createdAt: msg.createdAt,
                     senderName: msg.senderName,
                 };
                 addMessage(incoming);
+                void syncStepFromCoupleRow();
             },
         );
         return () => { void supabase.removeChannel(channel); };
-    }, [partnerInfo, addMessage]);
+    }, [partnerInfo, addMessage, syncStepFromCoupleRow]);
 
     // Subscribe to couple row — auto-complete when partner finishes setup
     useEffect(() => {
@@ -133,17 +164,19 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
     useEffect(() => {
         if (!coupleId) return;
         const channel = subscribeToCoupleDatingStart(coupleId, (state) => {
+            // #region agent log
+            fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H1-H3',location:'src/hooks/useCoupleSetup.ts:datingStartRealtime',message:'Couple dating_start realtime callback',data:{datingStartSet:!!state.datingStartDate,helpFocusSet:!!state.helpFocus,currentQuestionBefore:currentQuestion,hadPickerBefore:activePicker!==null},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             setActivePicker(null);
             if (state.helpFocus) {
                 setCurrentQuestion(2);
                 setIsComplete(true);
             } else {
-                // Partner set the date — resume flow to get the help focus prompt
-                void sendMessageRef.current?.('');
+                setCurrentQuestion(1);
             }
         });
         return () => { void supabase.removeChannel(channel); };
-    }, [coupleId, setCurrentQuestion, setIsComplete]);
+    }, [coupleId, currentQuestion, activePicker, setCurrentQuestion, setIsComplete]);
 
     // Derive display messages — append synthetic interactive message when a picker is active
     const displayMessages = useMemo((): CoupleSetupMessage[] => {
@@ -162,71 +195,96 @@ export function useCoupleSetup(): UseCoupleSetupReturn {
 
     const sendMessage = useCallback(
         async (text: string): Promise<void> => {
-            setLoading(true);
-            setError(null);
-
             const sanitized = sanitizeMessage(text);
 
-            if (sanitized.length > 0) {
-                const userMsg: CoupleSetupMessage = {
-                    id: generateMessageId('user'),
-                    role: 'user',
-                    content: sanitized,
+            if (isSendingRef.current && sanitized.length === 0) {
+                // #region agent log
+                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'post-fix',hypothesisId:'H2',location:'src/hooks/useCoupleSetup.ts:sendMessageEntry',message:'Skipped duplicate empty send while request in flight',data:{currentQuestionBefore:currentQuestion},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                return;
+            }
+
+            isSendingRef.current = true;
+            setLoading(true);
+            setError(null);
+            try {
+                // #region agent log
+                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H1-H2',location:'src/hooks/useCoupleSetup.ts:sendMessageEntry',message:'sendMessage invoked',data:{source:'local',inputPreview:sanitized.slice(0,32),currentQuestionBefore:currentQuestion,hasActivePicker:activePicker!==null},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+
+                if (sanitized.length > 0) {
+                    const userMsg: CoupleSetupMessage = {
+                        id: generateMessageId('user'),
+                        role: 'user',
+                        content: sanitized,
+                        createdAt: Date.now(),
+                    };
+                    addMessage(userMsg);
+                }
+
+                const result = await sendCoupleSetupMessage(sanitized);
+
+                if (!result.ok) {
+                    setError(result.error);
+                    setLoading(false);
+                    return;
+                }
+
+                const { reply, questionIndex, isComplete: complete } = result.data;
+
+                if (typeof reply !== 'string' || typeof questionIndex !== 'number' || typeof complete !== 'boolean') {
+                    setError('Unexpected response from server. Please try again.');
+                    setLoading(false);
+                    return;
+                }
+                // #region agent log
+                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H1-H2',location:'src/hooks/useCoupleSetup.ts:sendMessageResponse',message:'sendMessage API response parsed',data:{source:'api',questionIndex,complete,replyPreview:reply.slice(0,48),currentQuestionBeforeSet:currentQuestion,hasActivePickerBeforeSet:activePicker!==null},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+
+                const aiMsg: CoupleSetupMessage = {
+                    id: generateMessageId('ai'),
+                    role: 'assistant',
+                    content: reply,
                     createdAt: Date.now(),
                 };
-                addMessage(userMsg);
-            }
-
-            const result = await sendCoupleSetupMessage(sanitized);
-
-            if (!result.ok) {
-                setError(result.error);
+                addMessage(aiMsg);
+                const nextQuestion = Math.max(currentQuestion, questionIndex);
+                setCurrentQuestion(nextQuestion);
+                setIsComplete(complete);
                 setLoading(false);
-                return;
-            }
 
-            const { reply, questionIndex, isComplete: complete } = result.data;
-
-            if (typeof reply !== 'string' || typeof questionIndex !== 'number' || typeof complete !== 'boolean') {
-                setError('Unexpected response from server. Please try again.');
-                setLoading(false);
-                return;
-            }
-
-            const aiMsg: CoupleSetupMessage = {
-                id: generateMessageId('ai'),
-                role: 'assistant',
-                content: reply,
-                createdAt: Date.now(),
-            };
-            addMessage(aiMsg);
-            setCurrentQuestion(questionIndex);
-            setIsComplete(complete);
-            setLoading(false);
-
-            // questionIndex === 0 means the AI just asked for the dating start date — show picker
-            if (questionIndex === 0 && !complete) {
-                const today = new Date().toISOString().split('T')[0];
-                setActivePicker({
-                    type: 'date-picker',
-                    maxDate: today,
-                    title: 'Please choose the date when you started dating.',
-                });
-            }
-
-            // Refresh auth profile so RootNavigator transitions reactively
-            if (complete && userId) {
-                const profileResult = await authData.fetchProfile(userId);
-                if (profileResult.ok) {
-                    setUser(profileResult.data);
+                // Only show picker while still on step 0. Guard against stale/out-of-order
+                // responses that could otherwise reopen the picker after couple step advanced.
+                if (nextQuestion === 0 && !complete) {
+                    const today = new Date().toISOString().split('T')[0];
+                    setActivePicker({
+                        type: 'date-picker',
+                        maxDate: today,
+                        title: 'Please choose the date when you started dating.',
+                    });
+                    // #region agent log
+                    fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H1',location:'src/hooks/useCoupleSetup.ts:pickerSet',message:'Picker set after API response',data:{nextQuestion,complete},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                } else {
+                    setActivePicker(null);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H1-H3',location:'src/hooks/useCoupleSetup.ts:pickerClear',message:'Picker cleared after API/realtime progression',data:{nextQuestion,complete},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                 }
+
+                // Refresh auth profile so RootNavigator transitions reactively
+                if (complete && userId) {
+                    const profileResult = await authData.fetchProfile(userId);
+                    if (profileResult.ok) {
+                        setUser(profileResult.data);
+                    }
+                }
+            } finally {
+                isSendingRef.current = false;
             }
         },
-        [addMessage, setLoading, setError, setCurrentQuestion, setIsComplete, setUser, userId],
+        [addMessage, currentQuestion, activePicker, setLoading, setError, setCurrentQuestion, setIsComplete, setUser, userId],
     );
-
-    // Keep ref in sync so realtime callbacks can call sendMessage without stale closure
-    sendMessageRef.current = sendMessage;
 
     /** Called when the date picker emits a confirmed ISO date. */
     const confirmDatePicker = useCallback(
