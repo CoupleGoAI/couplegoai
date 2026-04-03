@@ -25,12 +25,15 @@
         "backgroundColor": "#FAF5FF"
       },
       "package": "com.couplegoai.app",
+      "versionCode": 1,
       "permissions": [
         "CAMERA"
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "static",
+      "bundler": "metro"
     },
     "plugins": [
       [
@@ -40,7 +43,8 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-router"
     ],
     "scheme": "couplegoai",
     "newArchEnabled": true

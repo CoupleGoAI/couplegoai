@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { Platform } from 'react-native';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
@@ -8,6 +9,7 @@ const PUBLISHABLE_DEFAULT_KEY = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_DEF
 const SECURE_STORE_CHUNK_SIZE = 2000;
 const CHUNK_META_SUFFIX = '_meta';
 const CHUNK_PART_PREFIX = '_chunk_';
+const webMemoryStorage = new Map<string, string>();
 
 /**
  * Sanitise a key so it only contains characters allowed by expo-secure-store:
@@ -42,6 +44,51 @@ async function removeChunkedValue(key: string): Promise<void> {
         // Ignore corrupt metadata; best-effort cleanup only.
     }
 }
+
+function getBrowserStorage(): Storage | null {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        return window.localStorage;
+    } catch {
+        return null;
+    }
+}
+
+const WebStorageAdapter = {
+    getItem: async (rawKey: string): Promise<string | null> => {
+        const key = sanitizeKey(rawKey);
+        const browserStorage = getBrowserStorage();
+
+        if (browserStorage) {
+            return browserStorage.getItem(key);
+        }
+
+        return webMemoryStorage.get(key) ?? null;
+    },
+    setItem: async (rawKey: string, value: string): Promise<void> => {
+        const key = sanitizeKey(rawKey);
+        const browserStorage = getBrowserStorage();
+
+        if (browserStorage) {
+            browserStorage.setItem(key, value);
+            return;
+        }
+
+        webMemoryStorage.set(key, value);
+    },
+    removeItem: async (rawKey: string): Promise<void> => {
+        const key = sanitizeKey(rawKey);
+        const browserStorage = getBrowserStorage();
+
+        if (browserStorage) {
+            browserStorage.removeItem(key);
+            return;
+        }
+
+        webMemoryStorage.delete(key);
+    },
+};
 
 /**
  * Custom storage adapter for Supabase using expo-secure-store.
@@ -103,9 +150,11 @@ const ExpoSecureStoreAdapter = {
     },
 };
 
+const storageAdapter = Platform.OS === 'web' ? WebStorageAdapter : ExpoSecureStoreAdapter;
+
 export const supabase = createClient(SUPABASE_URL, PUBLISHABLE_DEFAULT_KEY, {
     auth: {
-        storage: ExpoSecureStoreAdapter,
+        storage: storageAdapter,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
