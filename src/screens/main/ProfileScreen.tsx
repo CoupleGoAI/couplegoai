@@ -9,13 +9,9 @@ import {
     Platform,
     StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-} from 'react-native-reanimated';
+import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import GradientButton from '@components/ui/GradientButton';
@@ -61,6 +57,7 @@ function getMaxBirthDate(): Date {
 }
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps): React.ReactElement {
+    const insets = useSafeAreaInsets();
     const user = useAuthStore((s) => s.user);
     const { isSaving, isUploading, error, saveProfile, uploadAvatar } = useProfile();
 
@@ -143,6 +140,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
 
     const displayError = validationError ?? error;
     const hasCoupleId = user?.coupleId != null;
+    const bottomScrollPadding = insets.bottom + 148;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -154,7 +152,10 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                 <HeaderRow onBack={() => navigation.goBack()} />
 
                 <ScrollView
-                    contentContainerStyle={styles.scroll}
+                    contentContainerStyle={[
+                        styles.scroll,
+                        { flexGrow: 1, paddingBottom: bottomScrollPadding },
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
