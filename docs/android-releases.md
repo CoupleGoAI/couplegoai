@@ -9,7 +9,8 @@ This repo now supports Android APK releases directly from commit messages on `ma
 - Bumps `package.json`, `package-lock.json`, and `app.json`
 - Increments `expo.android.versionCode`
 - Creates a git tag like `android-v1.0.1`
-- Builds an APK with EAS
+- Generates the native Android project with `expo prebuild`
+- Builds a signed release APK with Gradle on GitHub Actions
 - Publishes a GitHub Release with the APK attached
 
 ## How release detection works
@@ -55,22 +56,42 @@ Explicit overrides win over semantic detection.
 
 ## One-time setup
 
-1. Create an Expo access token and save it as the GitHub secret `EXPO_TOKEN`.
-2. Run `npx eas-cli login` locally.
-3. Run `npx eas-cli project:init` locally once so Expo writes the project metadata needed by CI.
-4. Make sure Android credentials/keystore are configured in Expo when EAS prompts for them.
-5. If `main` is branch-protected, allow GitHub Actions to push version bump commits and tags, or swap `GITHUB_TOKEN` for a PAT with repo write access.
+1. Generate an Android upload keystore once and keep it safe.
+2. Add these GitHub Actions secrets:
+   - `ANDROID_KEYSTORE_BASE64`
+   - `ANDROID_KEYSTORE_PASSWORD`
+   - `ANDROID_KEY_ALIAS`
+   - `ANDROID_KEY_PASSWORD`
+3. If `main` is branch-protected, allow GitHub Actions to push version bump commits and tags, or swap `GITHUB_TOKEN` for a PAT with repo write access.
+
+To create `ANDROID_KEYSTORE_BASE64`, base64-encode your keystore file and save the resulting single-line string as the secret value.
+
+Example:
+
+```bash
+base64 -i release.keystore | pbcopy
+```
+
+On Linux:
+
+```bash
+base64 -w 0 release.keystore
+```
 
 ## Manual local Android build
 
 ```bash
-npx eas-cli build --platform android --profile production
+npx expo prebuild --platform android --clean --no-install
+cd android
+./gradlew assembleRelease
 ```
 
-That profile is configured in `eas.json` to generate an installable APK.
+For a locally signed release build, use the same keystore values you configured in GitHub.
 
 ## Notes
 
 - The workflow runs only on `main`.
 - Commits without a matching semantic rule or explicit release token do nothing.
 - The release commit created by the workflow uses `[skip ci]`, so the version bump commit does not loop into another release.
+- The workflow does not use Expo cloud build or `EXPO_TOKEN`.
+- The APK is built entirely on GitHub Actions with Gradle.

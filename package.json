@@ -16,8 +16,7 @@
     "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit",
     "test": "jest",
-    "release:android:prepare": "node scripts/prepare-android-release.mjs",
-    "release:android:artifact-url": "node scripts/get-eas-build-url.mjs"
+    "release:android:prepare": "node scripts/prepare-android-release.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
