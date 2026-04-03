@@ -7,6 +7,7 @@ import { HomeScreen } from '@screens/main/HomeScreen';
 import { GamesScreen } from '@screens/main/GamesScreen';
 import { UsScreen } from '@screens/main/UsScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
+import { colors } from '@/theme/tokens';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -26,7 +27,16 @@ export default function MainTabNavigator(): React.ReactElement {
                     onChatPress={() => rootNav.navigate('AiChat')}
                 />
             )}
-            screenOptions={{ headerShown: false }}
+            screenOptions={{
+                headerShown: false,
+                tabBarStyle: {
+                    backgroundColor: colors.transparent,
+                    borderTopWidth: 0,
+                    elevation: 0,
+                    shadowOpacity: 0,
+                    position: 'absolute',
+                },
+            }}
         >
             <Tab.Screen name="Nest" component={HomeScreen} />
             <Tab.Screen name="Play" component={GamesScreen} />

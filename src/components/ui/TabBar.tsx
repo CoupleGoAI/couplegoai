@@ -8,7 +8,7 @@ import { colors, radii, spacing, shadows } from '@/theme/tokens';
 
 const PILL_HEIGHT = 64;
 const FLOAT_MARGIN = 12;
-const BUTTON_RISE = 20; // how much button center sits above pill top
+const BUTTON_RISE = 14; // how much button center sits above tab row
 
 interface TabConfig {
     readonly route: string;
@@ -18,10 +18,10 @@ interface TabConfig {
 }
 
 const TAB_CONFIG: readonly TabConfig[] = [
-    { route: 'Nest',    icon: 'home-outline',            activeIcon: 'home',            color: colors.primary },
-    { route: 'Play',    icon: 'game-controller-outline',  activeIcon: 'game-controller',  color: colors.accent },
-    { route: 'Us',      icon: 'people-outline',           activeIcon: 'people',           color: colors.accent },
-    { route: 'Profile', icon: 'person-outline',           activeIcon: 'person',           color: colors.primary },
+    { route: 'Nest', icon: 'home-outline', activeIcon: 'home', color: colors.primary },
+    { route: 'Play', icon: 'game-controller-outline', activeIcon: 'game-controller', color: colors.accent },
+    { route: 'Us', icon: 'people-outline', activeIcon: 'people', color: colors.accent },
+    { route: 'Profile', icon: 'person-outline', activeIcon: 'person', color: colors.primary },
 ];
 
 interface TabIconButtonProps {
@@ -70,15 +70,13 @@ export const TabBar: React.FC<TabBarProps> = ({ state, navigation, onChatPress }
     const rightRoutes = state.routes.filter((r) => r.name === 'Us' || r.name === 'Profile');
 
     return (
-        <View style={{ height: containerHeight }}>
-            {/* Floating pill */}
+        <View pointerEvents="box-none" style={[styles.overlayHost, { height: containerHeight }]}>
             <View
                 style={[
                     styles.pill,
                     { bottom: bottomPad + FLOAT_MARGIN },
                 ]}
             >
-                {/* Left tabs */}
                 <View style={styles.tabGroup}>
                     {leftRoutes.map((route) => (
                         <TabIconButton
@@ -92,10 +90,8 @@ export const TabBar: React.FC<TabBarProps> = ({ state, navigation, onChatPress }
                     ))}
                 </View>
 
-                {/* Center spacer (room for the button) */}
                 <View style={styles.centerSlot} />
 
-                {/* Right tabs */}
                 <View style={styles.tabGroup}>
                     {rightRoutes.map((route) => (
                         <TabIconButton
@@ -110,7 +106,6 @@ export const TabBar: React.FC<TabBarProps> = ({ state, navigation, onChatPress }
                 </View>
             </View>
 
-            {/* Rising breathing button */}
             <View style={[styles.centerButtonWrap, { bottom: buttonBottom }]}>
                 <BreathingButton onPress={onChatPress} />
             </View>
@@ -119,6 +114,13 @@ export const TabBar: React.FC<TabBarProps> = ({ state, navigation, onChatPress }
 };
 
 const styles = StyleSheet.create({
+    overlayHost: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'visible',
+    },
     pill: {
         position: 'absolute',
         left: spacing.lg,
@@ -139,12 +141,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-evenly',
     },
     centerSlot: {
-        width: BREATHING_RING_SIZE + spacing.md,
+        width: BREATHING_RING_SIZE + spacing.sm,
     },
     tabButton: {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 3,
+        minWidth: 48,
         paddingVertical: spacing.sm,
     },
     activeDot: {
