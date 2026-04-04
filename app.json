@@ -2,7 +2,7 @@
   "expo": {
     "name": "CoupleGoAI",
     "slug": "couplegoai",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -25,7 +25,7 @@
         "backgroundColor": "#FAF5FF"
       },
       "package": "com.couplegoai.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "CAMERA"
       ]
