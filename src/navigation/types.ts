@@ -29,6 +29,8 @@ export type RootStackParamList = {
     CoupleSetup: undefined;
     MainTabs: undefined;
     AiChat: undefined;
+    /** Ollama (or compatible) on your machine — see EXPO_PUBLIC_OLLAMA_* env */
+    LocalWellbeingChat: undefined;
     Profile: undefined;
     DisconnectConfirm: undefined;
     GameLobby: GameLobbyParams;
@@ -62,6 +64,10 @@ export type CoupleSetupScreenProps = NativeStackScreenProps<RootStackParamList, 
 
 // AI chat screen props
 export type AiChatScreenProps = NativeStackScreenProps<RootStackParamList, 'AiChat'>;
+export type LocalWellbeingChatScreenProps = NativeStackScreenProps<
+    RootStackParamList,
+    'LocalWellbeingChat'
+>;
 
 // Pairing screen props
 export type GenerateQRScreenProps = NativeStackScreenProps<RootStackParamList, 'GenerateQR'>;

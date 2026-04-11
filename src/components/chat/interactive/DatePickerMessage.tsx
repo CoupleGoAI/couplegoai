@@ -1,14 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    runOnJS,
-    cancelAnimation,
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import GradientButton from '@components/ui/GradientButton';
 import {
     colors,
@@ -25,8 +17,6 @@ const ITEM_HEIGHT = 44;
 const COLUMN_HEIGHT = ITEM_HEIGHT * 3; // 3 visible rows; centre row = selected
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const SPRING_CONFIG = { damping: 18, stiffness: 180 } as const;
 
 function daysInMonth(month: number, year: number): number {
     return new Date(year, month + 1, 0).getDate();
@@ -47,25 +37,18 @@ function isoFromParts(year: number, month: number, day: number): string {
     return `${y}-${m}-${d}`;
 }
 
-// ─── Haptics ──────────────────────────────────────────────────────────────────
-
-// Called from the UI thread via runOnJS. Velocity (px/s) drives the style so
-// fast flicks feel heavier — mimicking the iPhone native picker behaviour.
-function hapticTick(absVelocity: number): void {
-    if (absVelocity > 2000) {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } else if (absVelocity > 700) {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } else if (absVelocity > 150) {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-        void Haptics.selectionAsync();
-    }
+/** Default selection: mid-year on max allowed year (not Dec 31), clamped to [minBound, maxBound]. */
+function defaultDateInRange(minBound: Date, maxBound: Date): Date {
+    const y = maxBound.getFullYear();
+    const tentative = new Date(y, 5, 15, 12, 0, 0, 0);
+    if (tentative.getTime() < minBound.getTime()) return new Date(minBound);
+    if (tentative.getTime() > maxBound.getTime()) return new Date(maxBound);
+    return tentative;
 }
 
-// ─── Single Column ────────────────────────────────────────────────────────────
-// Uses GestureDetector so the pan gesture is handled in RNGH's native system,
-// preventing the outer FlatList (chat) from stealing the vertical scroll.
+// ─── Single column (ScrollView) ───────────────────────────────────────────────
+// ScrollView + snap works on iOS, Android, and web; RNGH Pan often fails on web
+// and can fight parent scroll views.
 
 interface ColumnProps {
     data: string[];
@@ -73,81 +56,87 @@ interface ColumnProps {
     onSelect: (index: number) => void;
 }
 
+function snapScrollOffset(y: number, length: number): number {
+    const raw = Math.round(y / ITEM_HEIGHT);
+    const idx = Math.max(0, Math.min(length - 1, raw));
+    return idx * ITEM_HEIGHT;
+}
+
 const PickerColumn: React.FC<ColumnProps> = React.memo(({ data, selectedIndex, onSelect }) => {
-    // translateY = 0 → item 0 centred (items are offset by ITEM_HEIGHT padding at top)
-    // translateY = -i * ITEM_HEIGHT → item i centred
-    const translateY = useSharedValue(-selectedIndex * ITEM_HEIGHT);
-    const startY = useSharedValue(0);
-    // Tracks which item last triggered a haptic so we fire once per item tick
-    const lastHapticIndex = useSharedValue(selectedIndex);
+    const scrollRef = useRef<ScrollView>(null);
+    const length = data.length;
+    const maxOffset = Math.max(0, (length - 1) * ITEM_HEIGHT);
 
-    // Sync position when selectedIndex is changed externally (e.g. day clamp on month change)
+    const scrollToIndex = useCallback(
+        (index: number, animated: boolean) => {
+            const y = Math.max(0, Math.min(maxOffset, index * ITEM_HEIGHT));
+            scrollRef.current?.scrollTo({ y, animated });
+        },
+        [maxOffset],
+    );
+
     useEffect(() => {
-        const target = -selectedIndex * ITEM_HEIGHT;
-        if (Math.abs(translateY.value - target) > 1) {
-            translateY.value = withSpring(target, SPRING_CONFIG);
-        }
-        // translateY is a stable SharedValue ref — omitting from deps is intentional
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedIndex]);
+        scrollToIndex(selectedIndex, false);
+    }, [selectedIndex, scrollToIndex, length]);
 
-    const maxT = 0; // item 0 at centre
-    const minT = -(data.length - 1) * ITEM_HEIGHT; // last item at centre
+    const handleContentSizeChange = useCallback(() => {
+        scrollToIndex(selectedIndex, false);
+    }, [selectedIndex, scrollToIndex]);
 
-    const pan = Gesture.Pan()
-        .onBegin(() => {
-            cancelAnimation(translateY);
-            startY.value = translateY.value;
-            lastHapticIndex.value = Math.max(0, Math.min(data.length - 1, Math.round(-translateY.value / ITEM_HEIGHT)));
-        })
-        .onUpdate((e) => {
-            const clamped = Math.max(minT, Math.min(maxT, startY.value + e.translationY));
-            translateY.value = clamped;
-
-            // Fire one haptic each time the centred item changes
-            const current = Math.max(0, Math.min(data.length - 1, Math.round(-clamped / ITEM_HEIGHT)));
-            if (current !== lastHapticIndex.value) {
-                lastHapticIndex.value = current;
-                runOnJS(hapticTick)(Math.abs(e.velocityY));
+    const commitOffset = useCallback(
+        (y: number) => {
+            const snappedY = snapScrollOffset(y, length);
+            const idx = Math.round(snappedY / ITEM_HEIGHT);
+            scrollRef.current?.scrollTo({ y: snappedY, animated: true });
+            if (idx >= 0 && idx < length) {
+                onSelect(idx);
             }
-        })
-        .onEnd((e) => {
-            // Project forward using velocity to pick the landing item naturally
-            const projected = translateY.value + e.velocityY * 0.1;
-            const raw = -projected / ITEM_HEIGHT;
-            const snapped = Math.max(0, Math.min(data.length - 1, Math.round(raw)));
-            translateY.value = withSpring(-snapped * ITEM_HEIGHT, SPRING_CONFIG);
-            runOnJS(onSelect)(snapped);
-        });
+        },
+        [length, onSelect],
+    );
 
-    const animStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: translateY.value }],
-    }));
+    const handleScrollEnd = useCallback(
+        (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+            commitOffset(e.nativeEvent.contentOffset.y);
+        },
+        [commitOffset],
+    );
 
     return (
-        <GestureDetector gesture={pan}>
-            <View style={styles.column}>
-                {/* Highlight band sits behind items in the vertical centre */}
-                <View style={styles.selectionBand} pointerEvents="none" />
-                <Animated.View style={[styles.columnItems, animStyle]}>
-                    {data.map((item, index) => {
-                        const isSelected = index === selectedIndex;
-                        return (
-                            <View key={index} style={styles.item}>
-                                <Text
-                                    style={[
-                                        styles.itemText,
-                                        isSelected ? styles.itemTextSelected : styles.itemTextMuted,
-                                    ]}
-                                >
-                                    {item}
-                                </Text>
-                            </View>
-                        );
-                    })}
-                </Animated.View>
-            </View>
-        </GestureDetector>
+        <View style={styles.column}>
+            <View style={styles.selectionBand} pointerEvents="none" />
+            <ScrollView
+                ref={scrollRef}
+                style={styles.columnScroll}
+                contentContainerStyle={styles.columnScrollContent}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={Platform.OS === 'ios' ? ITEM_HEIGHT : undefined}
+                decelerationRate="fast"
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                onMomentumScrollEnd={handleScrollEnd}
+                onContentSizeChange={handleContentSizeChange}
+                {...(Platform.OS === 'android'
+                    ? { onScrollEndDrag: handleScrollEnd }
+                    : {})}
+            >
+                {data.map((item, index) => {
+                    const isSelected = index === selectedIndex;
+                    return (
+                        <View key={`${item}-${index}`} style={styles.item}>
+                            <Text
+                                style={[
+                                    styles.itemText,
+                                    isSelected ? styles.itemTextSelected : styles.itemTextMuted,
+                                ]}
+                            >
+                                {item}
+                            </Text>
+                        </View>
+                    );
+                })}
+            </ScrollView>
+        </View>
     );
 });
 PickerColumn.displayName = 'PickerColumn';
@@ -169,7 +158,7 @@ export const DatePickerMessage: React.FC<DatePickerMessageProps> = ({
 }) => {
     const maxBound = parseIsoOrToday(maxDate);
     const minBound = minDate ? parseIsoOrToday(minDate) : new Date(1900, 0, 1);
-    const initial = maxBound;
+    const initial = defaultDateInRange(minBound, maxBound);
     const maxYear = maxBound.getFullYear();
     const minYear = minBound.getFullYear();
 
@@ -180,7 +169,7 @@ export const DatePickerMessage: React.FC<DatePickerMessageProps> = ({
 
     const [monthIdx, setMonthIdx] = useState(initial.getMonth());
     const [dayIdx, setDayIdx] = useState(initial.getDate() - 1); // 0-based
-    const [yearIdx, setYearIdx] = useState(0); // index 0 = maxYear
+    const [yearIdx, setYearIdx] = useState(maxYear - initial.getFullYear());
 
     const currentYear = maxYear - yearIdx;
     const monthMinIdx = currentYear === minYear ? minBound.getMonth() : 0;
@@ -284,8 +273,10 @@ const styles = StyleSheet.create({
         height: COLUMN_HEIGHT,
         overflow: 'hidden',
     },
-    // Items start at y = ITEM_HEIGHT (padding) so item-0 sits in the centre slot
-    columnItems: {
+    columnScroll: {
+        flex: 1,
+    },
+    columnScrollContent: {
         paddingTop: ITEM_HEIGHT,
         paddingBottom: ITEM_HEIGHT,
     },

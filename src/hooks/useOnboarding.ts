@@ -7,6 +7,7 @@ import {
   sendOnboardingMessage,
 } from '@data/onboardingApi';
 import * as authData from '@data/auth';
+import { maxBirthDateIsoForMinAge } from '@domain/onboarding/birthDateBounds';
 import { sanitizeMessage } from '@domain/onboarding/validation';
 import type { OnboardingMessage } from '@store/onboardingStore';
 import type { InteractivePayload } from '@/types/index';
@@ -143,8 +144,11 @@ export function useOnboarding(): UseOnboardingReturn {
 
       // questionIndex === 1 means the AI just asked for the birth date — show picker
       if (questionIndex === 1 && !complete) {
-        const maxYear = new Date().getFullYear() - 16;
-        setActivePicker({ type: 'date-picker', maxDate: `${maxYear}-12-31`, title: 'When is your birthday?' });
+        setActivePicker({
+          type: 'date-picker',
+          maxDate: maxBirthDateIsoForMinAge(16),
+          title: 'When is your birthday?',
+        });
       }
     },
     // Zustand actions are stable references; userId is stable post-auth

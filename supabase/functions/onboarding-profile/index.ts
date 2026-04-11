@@ -56,6 +56,14 @@ const PROMPTS = {
     "I couldn't quite get that date. Try something like: March 12, 1997 or 1997-03-12 🗓️",
     "Hmm, that doesn't look like a valid birthday. Try: 12/03/1997 or March 12, 1997",
   ],
+  birthDateFuture: [
+    "That date is in the future — share the birthday you were born on 🎂",
+    "I need a real birthday from the past, not a future date 🗓️",
+  ],
+  birthDateAge: [
+    "You need to be between 16 and 110 to use CoupleGoAI. Pick a birthday that fits 💕",
+    "We can only welcome members aged 16–110. Try a different year 🎂",
+  ],
 };
 
 // ─── Validation helpers ──────────────────────────────────────────────────────
@@ -78,13 +86,13 @@ function validateBirthDate(input: string): { valid: boolean; value: string; hint
   // Fast path: date picker sends exact ISO date — bypass chrono entirely
   const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
   const parsed = ISO_RE.test(trimmed) ? new Date(trimmed + "T12:00:00") : chrono.parseDate(trimmed);
-  if (!parsed) {
+  if (!parsed || Number.isNaN(parsed.getTime())) {
     return { valid: false, value: "", hint: pick(PROMPTS.reaskBirthDate) };
   }
 
   const now = new Date();
   if (parsed > now) {
-    return { valid: false, value: "", hint: pick(PROMPTS.reaskBirthDate) };
+    return { valid: false, value: "", hint: pick(PROMPTS.birthDateFuture) };
   }
 
   const age = now.getFullYear() - parsed.getFullYear();
@@ -95,7 +103,7 @@ function validateBirthDate(input: string): { valid: boolean; value: string; hint
       : age - 1;
 
   if (adjustedAge < 16 || adjustedAge > 110) {
-    return { valid: false, value: "", hint: pick(PROMPTS.reaskBirthDate) };
+    return { valid: false, value: "", hint: pick(PROMPTS.birthDateAge) };
   }
 
   const yyyy = parsed.getFullYear().toString().padStart(4, "0");

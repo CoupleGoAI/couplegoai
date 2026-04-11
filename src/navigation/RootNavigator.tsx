@@ -15,6 +15,7 @@ import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScre
 import { CoupleSetupScreen } from '@screens/main/CoupleSetupScreen';
 import MainTabNavigator from '@navigation/MainTabNavigator';
 import { AiChatScreen } from '@screens/main/AiChatScreen';
+import { LocalWellbeingChatScreen } from '@screens/main/LocalWellbeingChatScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
 import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
 import GameLobbyScreen from '@screens/main/games/GameLobbyScreen';
@@ -93,6 +94,11 @@ export default function RootNavigator() {
                             name="AiChat"
                             component={AiChatScreen}
                             options={{ animation: 'slide_from_bottom' }}
+                        />
+                        <Stack.Screen
+                            name="LocalWellbeingChat"
+                            component={LocalWellbeingChatScreen}
+                            options={{ animation: 'slide_from_right' }}
                         />
                         <Stack.Screen
                             name="Profile"
