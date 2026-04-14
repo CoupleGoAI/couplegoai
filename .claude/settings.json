@@ -1,5 +1,21 @@
 {
+  "env": {
+    "BASH_MAX_OUTPUT_LENGTH": "30000"
+  },
   "permissions": {
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/strip-output.py"
+          }
+        ]
+      }
+    ]
   }
 }
