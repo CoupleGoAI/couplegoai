@@ -1,0 +1,14 @@
+---
+description: Shared skill routing and context-economy policy
+alwaysApply: true
+---
+
+# CoupleGoAI Agent Policy
+
+- Prefer repo-local skills from `.agents/skills/` when the task matches.
+- Start with the smallest relevant skill set: `react-native`, `frontend-design`, `supabase-postgres-best-practices`, `find-skills`, `commit-slices`.
+- Use `symdex` before reading large file sets when symbol or call-site lookup is enough.
+- Use `lean-ctx` to compress long docs, diffs, or exploration notes.
+- Use `caveman` only for genuinely broad repo archaeology.
+- Inspect live Supabase state before schema or query changes.
+- Keep changes minimal and deterministic.
