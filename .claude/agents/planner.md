@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Use this agent to prepare a structured execution brief for CoupleGoAI work. Provide the goal, current context, and relevant files. Returns scope, ownership, risks, and validation guidance. Does NOT write production code.
-model: claude-opus-4-6
+model: haiku
 tools:
   - Read
   - Glob

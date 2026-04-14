@@ -1,5 +1,13 @@
 # React Native / Expo Skill — CoupleGoAI
 
+## Shared Skill Routing
+
+- Read `.agents/skills/react-native/SKILL.md` first for the repo-local routing rules.
+- Use `.agents/skills/frontend-design/SKILL.md` as well when the task changes a screen, layout, motion, or visual hierarchy.
+- Prefer these shared skills over copying large chunks of framework guidance into the working context.
+
+---
+
 ## Stack
 
 - Expo (managed workflow)
@@ -34,6 +42,8 @@
 
 ## When Generating RN/Expo Code
 
+- Use `symdex` to find the exact component, navigator, store, or hook before opening a wide file set.
+- Use `lean-ctx` if the relevant screen family is too large to keep verbatim in context.
 - Confirm the Expo SDK version compatibility of any package before suggesting it
 - Prefer Expo-native APIs (e.g. `expo-camera`, `expo-haptics`) over bare RN equivalents
 - After generating a component, state any peer dependencies needed

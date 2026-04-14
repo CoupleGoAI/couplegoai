@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Use this agent to implement a CoupleGoAI feature or new module from a structured brief. Builds production code within the assigned file ownership and verifies the result.
-model: claude-opus-4-6
+model: sonnet
 tools:
   - Read
   - Write

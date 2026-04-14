@@ -1,5 +1,13 @@
 # Supabase Skill — CoupleGoAI
 
+## Shared Skill Routing
+
+- Read `.agents/skills/supabase-postgres-best-practices/SKILL.md` for query design, indexes, RLS performance, and schema guidance.
+- Use this file for CoupleGoAI-specific Supabase constraints after the shared skill is loaded.
+- Keep the working set small: inspect the exact tables and policies you need instead of loading broad schema context.
+
+---
+
 ## MCP Access — Live Supabase Introspection
 
 Claude has direct access to the CoupleGoAI Supabase project via the Supabase MCP server.

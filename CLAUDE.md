@@ -6,34 +6,7 @@ You are pair-coding on **CoupleGoAI**: a premium Gen Z couples mobile app.
 
 ## Stack
 
-| Layer      | Tech                                                                 |
-| ---------- | -------------------------------------------------------------------- |
-| Framework  | Expo ~54 (managed workflow)                                          |
-| Runtime    | React 19 · React Native 0.81 (New Architecture ready)                |
-| Language   | TypeScript 5 strict (`"strict": true`, zero `any`)                   |
-| Navigation | React Navigation 6 (native-stack + bottom-tabs)                      |
-| State      | Zustand 5 — thin slices, selectors, no providers                     |
-| Animation  | Reanimated 4 + Gesture Handler 2 (worklet-first)                     |
-| Styling    | NativeWind 4 (primary) · StyleSheet.create (dynamic/exceptions only) |
-| Assets     | expo-linear-gradient · expo-blur · @expo/vector-icons                |
-| QR         | react-native-qrcode-svg + expo-camera                                |
-| Haptics    | expo-haptics                                                         |
-
-Path aliases (tsconfig `paths`, mirrored in babel `module-resolver`):
-
-```
-@/*           → src/*
-@theme        → src/theme/index
-@components/* → src/components/*
-@screens/*    → src/screens/*
-@navigation/* → src/navigation/*
-@hooks/*      → src/hooks/*
-@store/*      → src/store/*
-@types/*      → src/types/*
-@utils/*      → src/utils/*
-```
-
-Always use aliases in imports. Never use deep relative paths (`../../..`).
+Expo 54 managed · React Native 0.81 · TypeScript strict · Zustand · Reanimated 4 · NativeWind 4. Full stack in `package.json`. Path aliases in `tsconfig.json` — always use `@/` aliases, never deep relative paths.
 
 ---
 
@@ -41,10 +14,16 @@ Always use aliases in imports. Never use deep relative paths (`../../..`).
 
 Before writing any code, load the relevant skill file:
 
+- `agent-orchestration.md` — shared skill-routing and context-economy policy for Claude, Codex, and Cursor
+- `.agents/skills/react-native/SKILL.md` — repo-local React Native router skill that layers on top of the installed React Native skill
+- `.agents/skills/frontend-design/SKILL.md` — use for screen design, visual polish, motion, and layout work
+- `.agents/skills/supabase-postgres-best-practices/SKILL.md` — use for SQL, indexes, RLS, and schema-performance decisions
 - `.claude/skills/supabase.md` — all Supabase, edge functions, JWT, MCP schema inspection
 - `.claude/skills/react-native.md` — Expo/RN conventions, Zustand, Reanimated, styling
 - `.claude/skills/agent-workflow.md` — command selection, native subagent handoffs, output format
 - `.claude/skills/save-changes.md` — safe git save flow that always uses branch `vanya`, never `main`
+
+Load the smallest matching set. Do not pull every skill into context when one or two are enough.
 
 ---
 
@@ -53,6 +32,12 @@ Before writing any code, load the relevant skill file:
 ---
 
 ## Agentic workflow
+
+This repo favors capability with low context usage:
+
+- Prefer repo-local skills over repeating long project instructions.
+- Use `symdex` MCP to locate symbols and entry points before reading large file sets.
+- Use `caveman` when the task needs broad repo archaeology across multiple surfaces.
 
 Choose the right command for the job:
 
@@ -105,41 +90,26 @@ UI (screens/components) → hooks → domain → data (interfaces)
 
 ---
 
-## Security & privacy (non-negotiable)
+## Security & privacy
 
-- **Never** log secrets, tokens, auth headers, PII, or full request/response bodies.
-- **Validate** at trust boundaries: deep links, QR payloads, push data, API responses, user input.
+Global rules in `~/.claude/CLAUDE.md` apply. Project-specific additions:
+
 - Tokens/secrets → `expo-secure-store` (never AsyncStorage, never MMKV for secrets).
-- **Least privilege**: request only permissions needed, gate by explicit user intent.
 - Wipe all sensitive state on logout (`store.reset()` + secure storage clear).
 - Real-time sync is **untrusted input** — validate shapes, verify ownership.
-- Error messages must **never** contain stack traces, internal IDs, or token fragments.
-
-If a security requirement conflicts with a feature constraint, **stop and propose** a safe alternative.
+- If a security requirement conflicts with a feature constraint, **stop and propose** a safe alternative.
 
 ---
 
 ## Reliability & quality
 
-- Network calls: typed errors (`Result<T, E>` or discriminated unions), timeouts, retries only for idempotent GETs.
+- Typed errors (`Result<T, E>` or discriminated unions), timeouts, retries only for idempotent GETs.
 - Every user-facing flow: loading → content → error → empty states.
-- Zero unhandled promises — always `catch` or `try/catch`.
-- Tests for domain logic (pure functions, use-cases).
 - `ErrorBoundary` at screen level for graceful crash recovery.
-
-### Code minimalism
-
-- Ship the smallest correct diff.
-- Delete dead code immediately. No commented-out code.
-- One concept per file. If a file exceeds ~200 lines, split.
-- Prefer composition over configuration. Prefer explicit over clever.
-- No premature abstraction — extract only when a pattern repeats 3+ times.
 
 ---
 
 ## Brand & UI system
-
-Tone: warm, romantic, premium, modern, slightly playful — never childish. Minimal cognitive load.
 
 - `src/theme/tokens.ts` is the **only** theme file — all colors, radii, spacing, shadows, typography, gradients.
 - All components import styling values exclusively from `@/theme/tokens`.
@@ -147,32 +117,21 @@ Tone: warm, romantic, premium, modern, slightly playful — never childish. Mini
 - Pill-shaped CTAs via `GradientButton`. Card-based layout via `Card`.
 - Motion: subtle `withTiming`/`withSpring`. Never jarring. Never blocks interaction.
 
-### Token palette
-
-| Token             | Value                                  |
-| ----------------- | -------------------------------------- |
-| `background`      | `#ffffff`                              |
-| `foreground`      | `#1e1230`                              |
-| `foregroundMuted` | `#42335a`                              |
-| `gray`            | `#8a7b9e`                              |
-| `primary`         | `#f48ba6`                              |
-| `primaryLight`    | `#f9b5c8`                              |
-| `accent`          | `#cc7be8`                              |
-| `accentLight`     | `#dda8f0`                              |
-| `muted`           | `#fef0f4`                              |
-| `accentSoft`      | `#f5eafa`                              |
-| `borderDefault`   | soft neutral derived from `foreground` |
-
-Radii: `radius=20`, `radiusMd=16`, `radiusSm=12`, `radiusFull=999`.
-Spacing: `xs/sm/md/lg/xl/2xl`. Layout: `screenPaddingH/screenPaddingV/cardPadding`.
-Tailwind: `bg-background`, `text-foreground`, `text-foregroundMuted`, `bg-primary`, `bg-accent`, `bg-muted`, `rounded-md`, `rounded-xl`, `rounded-full`.
+Brand tone, voice, and visual polish rules live in `.agents/skills/frontend-design/SKILL.md` — load that before UI work.
 
 ---
 
-## Output expectations (every meaningful change)
+## Compaction guidance
 
-1. **What** changed and **why** (one sentence)
-2. **Files** changed (grouped by layer)
-3. **Security** notes (what you validated)
-4. **Tests** added/updated
-5. **Manual test** steps (how to verify on device/simulator)
+When compacting this conversation, preserve:
+- Full list of modified file paths and the reason each was touched.
+- Outstanding TODOs and the active branch (default `vanya`).
+- Test/lint/typecheck commands run + their pass/fail status.
+- Any open security questions or schema decisions.
+Drop: tool-call transcripts, file reads already reflected in current state, exploratory chatter.
+
+---
+
+## Output expectations
+
+Global format in `~/.claude/CLAUDE.md` applies. Add **tests added/updated** when applicable.

@@ -1,7 +1,7 @@
 ---
 name: modifier
 description: Use this agent to modify existing CoupleGoAI code from a structured brief. Makes scoped edits within assigned files and verifies the result without refactoring unrelated code.
-model: claude-opus-4-6
+model: sonnet
 tools:
   - Read
   - Write
