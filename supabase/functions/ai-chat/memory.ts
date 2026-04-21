@@ -1,8 +1,15 @@
 // Background user-memory updater. Runs via EdgeRuntime.waitUntil after the
 // SSE response has flushed, so it never affects chat latency. Any failure is
 // swallowed — the old memory row is preserved.
+//
+// Provider-agnostic: routes all LLM calls through the shared LLMProvider
+// interface so swapping Groq ↔ Claude ↔ future providers is zero-code here.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { LLMProvider } from "../_shared/llm/types.ts";
+import { memoryProfile, withJsonModel } from "../_shared/llm/profiles.ts";
+import { redact } from "../_shared/redact.ts";
+import { logWarn } from "../_shared/log.ts";
 
 export interface UserMemoryRow {
   summary: string;
@@ -28,13 +35,11 @@ function clamp(summary: string, traits: Record<string, string>): {
   summary: string;
   traits: Record<string, string>;
 } {
-  // Hard summary cap first — never let trait pressure eat the whole summary.
   let s = summary.slice(0, MAX_SUMMARY_CHARS);
   let t = { ...traits };
   const size = () => JSON.stringify({ summary: s, traits: t }).length;
 
   while (size() > MAX_MEMORY_CHARS) {
-    // drop the longest trait value
     const entries = Object.entries(t);
     if (entries.length === 0) break;
     entries.sort((a, b) => b[1].length - a[1].length);
@@ -67,39 +72,13 @@ function validateParsed(raw: unknown): {
   return { summary: summary.trim(), traits };
 }
 
-async function callGroqJson(
-  groqKey: string,
-  prompt: string,
-): Promise<unknown> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${groqKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      stream: false,
-      max_tokens: 800,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!res.ok) throw new Error(`groq_${res.status}`);
-  const body = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = body.choices?.[0]?.message?.content;
-  if (typeof content !== "string") throw new Error("groq_empty");
-  return JSON.parse(content);
-}
-
 export interface RecentTurn {
   role: "user" | "assistant";
   content: string;
 }
 
+// Build the prompt. User content is redacted and referenced by role token
+// only — raw names, emails, and identifying data never reach the LLM here.
 function buildPrompt(
   existing: UserMemoryRow | null,
   recentTurns: RecentTurn[],
@@ -107,8 +86,16 @@ function buildPrompt(
   const existingJson = existing
     ? JSON.stringify({ summary: existing.summary, traits: existing.traits })
     : "none";
-  const turnsBlock = recentTurns.map((t) => `${t.role}: ${t.content}`).join("\n");
-  return `You maintain a short memory about a user of a relationship-advice app. Merge new insights from their recent turns into the existing memory. Keep durable facts (personality, values, recurring patterns, goals, fears, likes, dislikes, pain points, preferences, past experiences). Drop ephemeral details.
+  const turnsBlock = recentTurns
+    .map((t) => {
+      const speaker = t.role === "user" ? "Partner A" : "assistant";
+      const clean = redact(t.content).text;
+      return `${speaker}: ${clean}`;
+    })
+    .join("\n");
+  return `You maintain a short memory about the user (Partner A) of a relationship-advice app. Merge new insights from their recent turns into the existing memory. Keep durable facts (personality, values, recurring patterns, goals, fears, likes, dislikes, pain points, preferences, past experiences). Drop ephemeral details.
+
+Never mention any real names, emails, phone numbers, addresses, or third-party identifiers. If you see any, omit them.
 
 Output JSON only with this exact shape:
 {"summary": string, "traits": {"personality": string, "likes": string, "dislikes": string, "fears": string, "experiences": string, "pain_points": string, "preferences": string, "goals": string}}
@@ -122,26 +109,29 @@ Rules:
 EXISTING MEMORY:
 ${existingJson}
 
-RECENT TURNS:
+RECENT TURNS (already sanitized — do not infer beyond these):
 ${turnsBlock}`;
 }
 
 export interface UpdateMemoryArgs {
   supabase: SupabaseClient;
-  groqKey: string;
+  provider: LLMProvider;
+  model: string;
   userId: string;
   existingMemory: UserMemoryRow | null;
   recentTurns: RecentTurn[];
 }
 
 export async function updateMemory(args: UpdateMemoryArgs): Promise<void> {
-  const { supabase, groqKey, userId, existingMemory, recentTurns } = args;
+  const { supabase, provider, model, userId, existingMemory, recentTurns } = args;
   try {
-    const raw = await callGroqJson(
-      groqKey,
-      buildPrompt(existingMemory, recentTurns),
+    const prompt = buildPrompt(existingMemory, recentTurns);
+    const raw = await provider.complete(
+      [{ role: "user", content: prompt }],
+      withJsonModel(memoryProfile, model),
     );
-    const validated = validateParsed(raw);
+    const parsed = JSON.parse(raw);
+    const validated = validateParsed(parsed);
     if (!validated) throw new Error("invalid_shape");
     const clamped = clamp(validated.summary, validated.traits);
 
@@ -157,8 +147,8 @@ export async function updateMemory(args: UpdateMemoryArgs): Promise<void> {
     );
     if (error) throw new Error("upsert_failed");
   } catch (err) {
-    const name = err instanceof Error ? err.message : "unknown";
-    console.warn(`memory update failed: ${name}`);
+    const code = err instanceof Error ? err.message : "unknown";
+    logWarn({ feature: "ai-chat", event: "memory_update_failed", code, userId });
   }
 }
 

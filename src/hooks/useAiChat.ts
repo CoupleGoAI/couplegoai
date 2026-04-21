@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ChatMode, ChatMessage } from '@/types/index';
 import { validateMessageText, createUserMessage } from '@/domain/aiChat/validation';
+import { substitutePartnerLabels } from '@/domain/aiChat/partnerLabels';
 import { fetchChatHistory, sendStreamMessage } from '@data/aiChatApi';
 import { fetchCoupleChatHistory, fetchPartnerInfo, subscribeToCoupleChatMessages } from '@data/coupleChatApi';
 import type { PartnerInfo } from '@data/coupleChatApi';
@@ -19,12 +20,24 @@ export interface UseAiChatReturn {
 
 export function useAiChat(mode: ChatMode): UseAiChatReturn {
     const userId = useAuthStore((s) => s.user?.id);
+    const userName = useAuthStore((s) => s.user?.name ?? null);
     const coupleId = useAuthStore((s) => s.user?.coupleId);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isHistoryLoading, setIsHistoryLoading] = useState(true);
     const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [partnerInfo, setPartnerInfo] = useState<PartnerInfo | null>(null);
+
+    // Names used to splice role labels ("Partner A" / "Partner B") coming
+    // back from the LLM with the real display names. The LLM is instructed
+    // never to emit these labels; this is a safety net for slip-ups.
+    const labelNames = useMemo(
+        () => ({
+            partnerA: userName,
+            partnerB: partnerInfo?.name ?? null,
+        }),
+        [userName, partnerInfo?.name],
+    );
 
     // Reset state on mode change
     useEffect(() => {
@@ -68,8 +81,16 @@ export function useAiChat(mode: ChatMode): UseAiChatReturn {
                     ? await fetchCoupleChatHistory(userId!, partnerInfo)
                     : await fetchChatHistory();
                 if (cancelled) return;
-                if (result.ok) setMessages(result.data);
-                else setError(result.error);
+                if (result.ok) {
+                    // Splice role labels in any assistant messages stored from
+                    // earlier sessions so users never see "Partner A" / "Partner B".
+                    const spliced = result.data.map((m) =>
+                        m.role === 'assistant'
+                            ? { ...m, text: substitutePartnerLabels(m.text, labelNames) }
+                            : m,
+                    );
+                    setMessages(spliced);
+                } else setError(result.error);
             } catch {
                 if (!cancelled) setError('Failed to load chat history.');
             } finally {
@@ -79,7 +100,7 @@ export function useAiChat(mode: ChatMode): UseAiChatReturn {
 
         void load();
         return () => { cancelled = true; };
-    }, [mode, userId, partnerInfo]);
+    }, [mode, userId, partnerInfo, labelNames]);
 
     // Realtime subscription for couple mode
     useEffect(() => {
@@ -88,10 +109,18 @@ export function useAiChat(mode: ChatMode): UseAiChatReturn {
         const channel = subscribeToCoupleChatMessages(
             partnerInfo.id,
             partnerInfo.name,
-            (msg) => setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]),
+            (msg) => {
+                const normalized =
+                    msg.role === 'assistant'
+                        ? { ...msg, text: substitutePartnerLabels(msg.text, labelNames) }
+                        : msg;
+                setMessages((prev) =>
+                    prev.some((m) => m.id === normalized.id) ? prev : [...prev, normalized],
+                );
+            },
         );
         return () => { void supabase.removeChannel(channel); };
-    }, [mode, partnerInfo]);
+    }, [mode, partnerInfo, labelNames]);
 
     const send = useCallback(async (text: string): Promise<void> => {
         const validation = validateMessageText(text);
@@ -117,16 +146,24 @@ export function useAiChat(mode: ChatMode): UseAiChatReturn {
         await sendStreamMessage(text, {
             onChunk(chunk: string) {
                 setMessages((prev) =>
-                    prev.map((m) =>
-                        m.id === streamId ? { ...m, text: m.text + chunk } : m,
-                    ),
+                    prev.map((m) => {
+                        if (m.id !== streamId) return m;
+                        const nextText = substitutePartnerLabels(m.text + chunk, labelNames);
+                        return { ...m, text: nextText };
+                    }),
                 );
             },
             onDone() {
                 setMessages((prev) =>
                     prev.map((m) => {
                         if (m.id === userMsg.id) return { ...m, status: 'sent' as const };
-                        if (m.id === streamId) return { ...m, status: 'sent' as const };
+                        if (m.id === streamId) {
+                            return {
+                                ...m,
+                                status: 'sent' as const,
+                                text: substitutePartnerLabels(m.text, labelNames),
+                            };
+                        }
                         return m;
                     }),
                 );
@@ -144,7 +181,7 @@ export function useAiChat(mode: ChatMode): UseAiChatReturn {
                 setIsStreaming(false);
             },
         }, mode === 'couple' ? 'couple' : undefined);
-    }, [mode]);
+    }, [mode, labelNames]);
 
     const clearError = useCallback(() => setError(null), []);
 

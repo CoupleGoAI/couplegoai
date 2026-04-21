@@ -82,3 +82,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/game-history/deno.json"
 entrypoint = "./functions/game-history/index.ts"
+
+[functions.account-delete]
+enabled = true
+verify_jwt = false
+import_map = "./functions/account-delete/deno.json"
+entrypoint = "./functions/account-delete/index.ts"
