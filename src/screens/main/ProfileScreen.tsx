@@ -260,7 +260,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                                     <Text style={styles.disconnectLabel}>Disconnect from partner</Text>
                                 </TouchableOpacity>
                             )}
-
                             <TouchableOpacity
                                 style={[styles.logoutBtn, styles.secondaryBtn]}
                                 activeOpacity={0.8}

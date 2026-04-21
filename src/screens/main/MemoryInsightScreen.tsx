@@ -83,7 +83,6 @@ export default function MemoryInsightScreen({ navigation }: MemoryInsightScreenP
             setIsSubmitting(false);
         }
     }, [activeCorrection, correctionText, userId]);
-
     const traitEntries = Object.entries(memory?.traits ?? {}).filter(
         ([key, val]) => TRAIT_LABELS[key] !== undefined && typeof val === 'string' && val.trim().length > 0,
     );
