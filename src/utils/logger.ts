@@ -13,6 +13,22 @@ function ts(): string {
   return new Date().toISOString();
 }
 
+const SENSITIVE_KEYS = new Set([
+  'token', 'accessToken', 'refreshToken', 'idToken',
+  'authorization', 'password', 'apiKey', 'secret',
+  'jwt', 'sessionId', 'refreshToken',
+]);
+
+function redactMeta(value: unknown, depth = 0): unknown {
+  if (depth > 5 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => redactMeta(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = SENSITIVE_KEYS.has(k) ? '[redacted]' : redactMeta(v, depth + 1);
+  }
+  return out;
+}
+
 function format(
   level: LogLevel,
   tag: string,
@@ -21,7 +37,7 @@ function format(
 ): string {
   const base = `[${ts()}] ${level.toUpperCase()} [${tag}] ${message}`;
   if (meta && Object.keys(meta).length > 0) {
-    return `${base} ${JSON.stringify(meta)}\n`;
+    return `${base} ${JSON.stringify(redactMeta(meta))}\n`;
   }
   return `${base}\n`;
 }

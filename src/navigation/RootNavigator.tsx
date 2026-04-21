@@ -16,6 +16,7 @@ import { CoupleSetupScreen } from '@screens/main/CoupleSetupScreen';
 import MainTabNavigator from '@navigation/MainTabNavigator';
 import { AiChatScreen } from '@screens/main/AiChatScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
+import MemoryInsightScreen from '@screens/main/MemoryInsightScreen';
 import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
 import GameLobbyScreen from '@screens/main/games/GameLobbyScreen';
 import GameSessionScreen from '@screens/main/games/GameSessionScreen';
@@ -97,6 +98,11 @@ export default function RootNavigator() {
                         <Stack.Screen
                             name="Profile"
                             component={ProfileScreen}
+                            options={{ animation: 'slide_from_right' }}
+                        />
+                        <Stack.Screen
+                            name="MemoryInsight"
+                            component={MemoryInsightScreen}
                             options={{ animation: 'slide_from_right' }}
                         />
                         <Stack.Screen

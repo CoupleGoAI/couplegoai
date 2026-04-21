@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .eq("conversation_type", "chat")
       .order("created_at", { ascending: false })
-      .limit(20),
+      .limit(10),
     supabase
       .from("user_memory")
       .select("summary, traits, message_count")
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
             .or(`user_id.eq.${userId},user_id.eq.${partnerId}`)
             .eq("conversation_type", "couple_chat")
             .order("created_at", { ascending: false })
-            .limit(20),
+            .limit(10),
           supabase
             .from("couple_memory")
             .select("summary, traits, message_count")

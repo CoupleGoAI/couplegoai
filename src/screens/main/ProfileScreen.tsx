@@ -225,6 +225,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                             disabled={isSaving}
                         />
 
+                        <TouchableOpacity
+                            style={styles.memoryBtn}
+                            activeOpacity={0.8}
+                            onPress={() => navigation.navigate('MemoryInsight')}
+                        >
+                            <Text style={styles.memoryLabel}>What does the AI know about me?</Text>
+                        </TouchableOpacity>
+
                         {hasCoupleId && (
                             <TouchableOpacity
                                 style={styles.disconnectBtn}

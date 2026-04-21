@@ -324,6 +324,20 @@ export const styles = StyleSheet.create({
         color: colors.error,
     },
     actions: { marginTop: spacing['2xl'], gap: spacing.lg },
+    memoryBtn: {
+        alignSelf: 'center',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.radiusFull,
+        borderWidth: 1.5,
+        borderColor: colors.borderDefault,
+    },
+    memoryLabel: {
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.base,
+        fontWeight: fontWeight.semibold,
+        color: colors.foregroundMuted,
+    },
     disconnectBtn: {
         alignSelf: 'center',
         paddingVertical: spacing.md,

@@ -166,9 +166,6 @@ export function subscribeToPartnerCoupleSetupMessages(
                 const row = payload.new as RealtimeMessagePayload;
                 if (row.conversation_type !== 'couple_setup') return;
                 if (row.role !== 'user' && row.role !== 'assistant') return;
-                // #region agent log
-                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H4',location:'src/data/coupleChatApi.ts:subscribeToPartnerCoupleSetupMessages',message:'Raw couple_setup realtime row accepted',data:{partnerId,role:row.role,contentPreview:row.content.slice(0,48)},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
 
                 onInsert({
                     id: row.id,
