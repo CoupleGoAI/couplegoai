@@ -13,25 +13,21 @@
 // correlation id, the userId, and a coarse status make it into logs.
 
 import "@supabase/functions-js/edge-runtime.d.ts";
+import { makeCorsHeaders } from "../_shared/cors.ts";
 import { createClient } from "@supabase/supabase-js";
 import { logError, logInfo, newCorrelationId } from "../_shared/log.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    headers: { ...makeCorsHeaders(), "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: makeCorsHeaders() });
   }
   if (req.method !== "POST" && req.method !== "DELETE") {
     return json({ error: "Method not allowed" }, 405);
@@ -81,5 +77,5 @@ Deno.serve(async (req) => {
 
   logInfo({ feature, event: "deleted", correlationId, userId, status: 204 });
 
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+  return new Response(null, { status: 204, headers: makeCorsHeaders() });
 });

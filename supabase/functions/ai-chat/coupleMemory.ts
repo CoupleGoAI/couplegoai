@@ -139,6 +139,11 @@ function clampJsonSize(
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+interface CoupleCorrectionRow {
+  id: string;
+  instruction: string;
+}
+
 export interface UpdateCoupleMemoryArgs {
   supabase: SupabaseClient;
   provider: LLMProvider;
@@ -173,11 +178,29 @@ export async function updateCoupleMemory(
       text: redact(t.text, [nameA, nameB]).text,
     }));
 
-    // Step 2: merge via provider.
+    // Step 2: fetch pending couple corrections.
+    const { data: correctionRows } = await supabase
+      .from("memory_corrections")
+      .select("id, instruction")
+      .eq("scope", "couple")
+      .eq("owner_id", coupleId)
+      .is("applied_at", null)
+      .limit(5);
+
+    const corrections = (correctionRows ?? []) as CoupleCorrectionRow[];
+
+    const correctionsBlock = corrections.length > 0
+      ? `\n\nPENDING CORRECTIONS (apply these — both partners want to fix the memory):\n${corrections.map((c) => `- ${c.instruction}`).join("\n")}`
+      : "";
+
+    // Step 3: merge via provider.
     const raw = await provider.complete(
       [
         { role: "system", content: MERGER_SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(existingMemory, redactedTurns) },
+        {
+          role: "user",
+          content: buildUserPrompt(existingMemory, redactedTurns) + correctionsBlock,
+        },
       ],
       withJsonModel(coupleMemoryProfile, model),
     );
@@ -197,6 +220,13 @@ export async function updateCoupleMemory(
       { onConflict: "couple_id" },
     );
     if (error) throw new Error("upsert_failed");
+
+    if (corrections.length > 0) {
+      await supabase
+        .from("memory_corrections")
+        .update({ applied_at: new Date().toISOString() })
+        .in("id", corrections.map((c) => c.id));
+    }
   } catch (err) {
     const code = err instanceof Error ? err.message : "unknown";
     logWarn({

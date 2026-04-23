@@ -15,8 +15,10 @@ import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reani
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import GradientButton from '@components/ui/GradientButton';
+import { Share } from 'react-native';
 import { useProfile } from '@hooks/useProfile';
 import { useAuthStore } from '@store/authStore';
+import { exportData } from '@data/profileApi';
 import type { ProfileScreenProps } from '@navigation/types';
 import { HelpFocusChips } from '@screens/main/profile/HelpFocusChips';
 import {
@@ -138,6 +140,19 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
         if (success) navigation.goBack();
     }, [name, birthDateStr, helpFocus, datingDateStr, saveProfile, navigation]);
 
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExport = useCallback(async (): Promise<void> => {
+        setIsExporting(true);
+        try {
+            const result = await exportData();
+            if (!result.ok) return;
+            await Share.share({ message: result.data, title: 'Your CoupleGoAI data' });
+        } finally {
+            setIsExporting(false);
+        }
+    }, []);
+
     const displayError = validationError ?? error;
     const hasCoupleId = user?.coupleId != null;
     const bottomScrollPadding = insets.bottom + 148;
@@ -233,6 +248,17 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                             <Text style={styles.memoryLabel}>What does the AI know about me?</Text>
                         </TouchableOpacity>
 
+                        <TouchableOpacity
+                            style={styles.memoryBtn}
+                            activeOpacity={0.8}
+                            disabled={isExporting}
+                            onPress={() => { void handleExport(); }}
+                        >
+                            <Text style={styles.memoryLabel}>
+                                {isExporting ? 'Preparing export…' : 'Download my data'}
+                            </Text>
+                        </TouchableOpacity>
+
                         {hasCoupleId && (
                             <TouchableOpacity
                                 style={styles.disconnectBtn}
@@ -242,6 +268,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                                 <Text style={styles.disconnectLabel}>Disconnect from partner</Text>
                             </TouchableOpacity>
                         )}
+
+                        <TouchableOpacity
+                            style={styles.deleteBtn}
+                            activeOpacity={0.8}
+                            onPress={() => navigation.navigate('AccountDelete')}
+                        >
+                            <Text style={styles.deleteLabel}>Delete account</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>

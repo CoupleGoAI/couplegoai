@@ -2,15 +2,18 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
+    TextInput,
     ScrollView,
     TouchableOpacity,
     ActivityIndicator,
+    Alert,
     StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@data/supabase';
-import { colors, gradients, textStyles, radii, spacing } from '@/theme/tokens';
+import { useAuthStore } from '@store/authStore';
+import { colors, gradients, textStyles, radii, spacing, fontFamilies, fontSize, fontWeight } from '@/theme/tokens';
 import type { MemoryInsightScreenProps } from '@navigation/types';
 
 const TRAIT_LABELS: Record<string, string> = {
@@ -31,9 +34,13 @@ interface MemoryRow {
 }
 
 export default function MemoryInsightScreen({ navigation }: MemoryInsightScreenProps): React.ReactElement {
+    const userId = useAuthStore((s) => s.user?.id);
     const [memory, setMemory] = useState<MemoryRow | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [activeCorrection, setActiveCorrection] = useState<{ kind: 'summary' | 'trait'; key?: string } | null>(null);
+    const [correctionText, setCorrectionText] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -54,6 +61,28 @@ export default function MemoryInsightScreen({ navigation }: MemoryInsightScreenP
     useEffect(() => {
         void load();
     }, [load]);
+
+    const submitCorrection = useCallback(async (): Promise<void> => {
+        if (!activeCorrection || !correctionText.trim() || !userId) return;
+        setIsSubmitting(true);
+        try {
+            await supabase.from('memory_corrections').insert({
+                scope: 'user',
+                owner_id: userId,
+                target_kind: activeCorrection.kind,
+                target_key: activeCorrection.key ?? null,
+                instruction: correctionText.trim(),
+                created_by: userId,
+            });
+            setCorrectionText('');
+            setActiveCorrection(null);
+            Alert.alert('Saved', 'Correction saved. The AI will apply it on your next memory update.');
+        } catch {
+            Alert.alert('Error', 'Failed to save correction. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [activeCorrection, correctionText, userId]);
 
     const traitEntries = Object.entries(memory?.traits ?? {}).filter(
         ([key, val]) => TRAIT_LABELS[key] !== undefined && typeof val === 'string' && val.trim().length > 0,
@@ -118,6 +147,38 @@ export default function MemoryInsightScreen({ navigation }: MemoryInsightScreenP
                             <View style={styles.card}>
                                 <Text style={styles.cardLabel}>Overview</Text>
                                 <Text style={styles.cardBody}>{memory!.summary.trim()}</Text>
+                                <TouchableOpacity
+                                    onPress={() => setActiveCorrection({ kind: 'summary' })}
+                                    style={styles.correctBtn}
+                                >
+                                    <Text style={styles.correctLabel}>Correct this</Text>
+                                </TouchableOpacity>
+                                {activeCorrection?.kind === 'summary' && (
+                                    <View style={styles.correctionForm}>
+                                        <TextInput
+                                            value={correctionText}
+                                            onChangeText={setCorrectionText}
+                                            placeholder="e.g. I'm not single anymore"
+                                            placeholderTextColor={colors.gray}
+                                            maxLength={500}
+                                            multiline
+                                            style={styles.correctionInput}
+                                        />
+                                        <View style={styles.correctionActions}>
+                                            <TouchableOpacity onPress={() => { setActiveCorrection(null); setCorrectionText(''); }}>
+                                                <Text style={styles.cancelLabel}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => { void submitCorrection(); }}
+                                                disabled={isSubmitting || correctionText.trim().length === 0}
+                                            >
+                                                <Text style={[styles.submitLabel, (isSubmitting || correctionText.trim().length === 0) && styles.submitDisabled]}>
+                                                    {isSubmitting ? 'Saving…' : 'Save'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
                             </View>
                         )}
 
@@ -125,6 +186,38 @@ export default function MemoryInsightScreen({ navigation }: MemoryInsightScreenP
                             <View key={key} style={styles.card}>
                                 <Text style={styles.cardLabel}>{TRAIT_LABELS[key] ?? key}</Text>
                                 <Text style={styles.cardBody}>{val.trim()}</Text>
+                                <TouchableOpacity
+                                    onPress={() => setActiveCorrection({ kind: 'trait', key })}
+                                    style={styles.correctBtn}
+                                >
+                                    <Text style={styles.correctLabel}>Correct this</Text>
+                                </TouchableOpacity>
+                                {activeCorrection?.kind === 'trait' && activeCorrection.key === key && (
+                                    <View style={styles.correctionForm}>
+                                        <TextInput
+                                            value={correctionText}
+                                            onChangeText={setCorrectionText}
+                                            placeholder="e.g. I'm not single anymore"
+                                            placeholderTextColor={colors.gray}
+                                            maxLength={500}
+                                            multiline
+                                            style={styles.correctionInput}
+                                        />
+                                        <View style={styles.correctionActions}>
+                                            <TouchableOpacity onPress={() => { setActiveCorrection(null); setCorrectionText(''); }}>
+                                                <Text style={styles.cancelLabel}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => { void submitCorrection(); }}
+                                                disabled={isSubmitting || correctionText.trim().length === 0}
+                                            >
+                                                <Text style={[styles.submitLabel, (isSubmitting || correctionText.trim().length === 0) && styles.submitDisabled]}>
+                                                    {isSubmitting ? 'Saving…' : 'Save'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
                             </View>
                         ))}
 

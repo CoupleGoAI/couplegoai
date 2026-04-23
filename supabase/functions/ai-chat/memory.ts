@@ -77,11 +77,19 @@ export interface RecentTurn {
   content: string;
 }
 
+interface CorrectionRow {
+  id: string;
+  target_kind: string | null;
+  target_key: string | null;
+  instruction: string;
+}
+
 // Build the prompt. User content is redacted and referenced by role token
 // only — raw names, emails, and identifying data never reach the LLM here.
 function buildPrompt(
   existing: UserMemoryRow | null,
   recentTurns: RecentTurn[],
+  corrections: CorrectionRow[] = [],
 ): string {
   const existingJson = existing
     ? JSON.stringify({ summary: existing.summary, traits: existing.traits })
@@ -93,6 +101,9 @@ function buildPrompt(
       return `${speaker}: ${clean}`;
     })
     .join("\n");
+  const correctionsBlock = corrections.length > 0
+    ? `\n\nPENDING USER CORRECTIONS (apply these — the user wants to fix the memory):\n${corrections.map((c) => `- ${c.instruction}`).join("\n")}`
+    : "";
   return `You maintain a short memory about the user (Partner A) of a relationship-advice app. Merge new insights from their recent turns into the existing memory. Keep durable facts (personality, values, recurring patterns, goals, fears, likes, dislikes, pain points, preferences, past experiences). Drop ephemeral details.
 
 Never mention any real names, emails, phone numbers, addresses, or third-party identifiers. If you see any, omit them.
@@ -110,7 +121,7 @@ EXISTING MEMORY:
 ${existingJson}
 
 RECENT TURNS (already sanitized — do not infer beyond these):
-${turnsBlock}`;
+${turnsBlock}${correctionsBlock}`;
 }
 
 export interface UpdateMemoryArgs {
@@ -125,7 +136,18 @@ export interface UpdateMemoryArgs {
 export async function updateMemory(args: UpdateMemoryArgs): Promise<void> {
   const { supabase, provider, model, userId, existingMemory, recentTurns } = args;
   try {
-    const prompt = buildPrompt(existingMemory, recentTurns);
+    // Fetch pending corrections before building the prompt.
+    const { data: correctionRows } = await supabase
+      .from("memory_corrections")
+      .select("id, target_kind, target_key, instruction")
+      .eq("scope", "user")
+      .eq("owner_id", userId)
+      .is("applied_at", null)
+      .limit(5);
+
+    const corrections = (correctionRows ?? []) as CorrectionRow[];
+
+    const prompt = buildPrompt(existingMemory, recentTurns, corrections);
     const raw = await provider.complete(
       [{ role: "user", content: prompt }],
       withJsonModel(memoryProfile, model),
@@ -146,6 +168,13 @@ export async function updateMemory(args: UpdateMemoryArgs): Promise<void> {
       { onConflict: "user_id" },
     );
     if (error) throw new Error("upsert_failed");
+
+    if (corrections.length > 0) {
+      await supabase
+        .from("memory_corrections")
+        .update({ applied_at: new Date().toISOString() })
+        .in("id", corrections.map((c) => c.id));
+    }
   } catch (err) {
     const code = err instanceof Error ? err.message : "unknown";
     logWarn({ feature: "ai-chat", event: "memory_update_failed", code, userId });

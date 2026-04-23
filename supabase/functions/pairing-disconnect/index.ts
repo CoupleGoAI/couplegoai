@@ -10,23 +10,18 @@
 
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { makeCorsHeaders } from "../_shared/cors.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    headers: { ...makeCorsHeaders(), "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: makeCorsHeaders() });
   }
 
   // MUST-1: Verify JWT via Auth REST API — never client.auth.getUser()
@@ -110,6 +105,19 @@ Deno.serve(async (req) => {
   // Wipe shared couple memory so it can never resurface on a future reconnect.
   // Best-effort: failure here must not block disconnect.
   await supabase.from("couple_memory").delete().eq("couple_id", coupleId);
+
+  // Clean up active game state (DB trigger also does this as defense-in-depth).
+  await supabase
+    .from("game_invitations")
+    .delete()
+    .eq("couple_id", coupleId)
+    .eq("status", "pending");
+
+  await supabase
+    .from("game_sessions")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+    .eq("couple_id", coupleId)
+    .in("status", ["waiting", "active"]);
 
   // Clear couple_id on both profiles
   await supabase

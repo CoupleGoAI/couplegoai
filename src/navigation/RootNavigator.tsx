@@ -18,6 +18,7 @@ import { AiChatScreen } from '@screens/main/AiChatScreen';
 import ProfileScreen from '@screens/main/ProfileScreen';
 import MemoryInsightScreen from '@screens/main/MemoryInsightScreen';
 import DisconnectConfirmScreen from '@screens/main/DisconnectConfirmScreen';
+import AccountDeleteScreen from '@screens/main/AccountDeleteScreen';
 import GameLobbyScreen from '@screens/main/games/GameLobbyScreen';
 import GameSessionScreen from '@screens/main/games/GameSessionScreen';
 import GameResultsScreen from '@screens/main/games/GameResultsScreen';
@@ -108,6 +109,11 @@ export default function RootNavigator() {
                         <Stack.Screen
                             name="DisconnectConfirm"
                             component={DisconnectConfirmScreen}
+                            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                        />
+                        <Stack.Screen
+                            name="AccountDelete"
+                            component={AccountDeleteScreen}
                             options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
                         />
                         <Stack.Screen

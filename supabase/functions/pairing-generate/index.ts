@@ -9,18 +9,14 @@
 // =============================================================================
 
 import "@supabase/functions-js/edge-runtime.d.ts";
+import { makeCorsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    headers: { ...makeCorsHeaders(), "Content-Type": "application/json" },
   });
 }
 
@@ -42,7 +38,7 @@ function deriveShortCode(token: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: makeCorsHeaders() });
   }
 
   // MUST-1: Verify JWT via Auth REST API — never client.auth.getUser()

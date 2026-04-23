@@ -31,19 +31,14 @@ import { tryGetProvider } from "../_shared/llm/factory.ts";
 import { chatProfile, withModel } from "../_shared/llm/profiles.ts";
 import type { LLMMessage } from "../_shared/llm/types.ts";
 import { logError, logWarn, newCorrelationId } from "../_shared/log.ts";
-
-// ─── CORS ────────────────────────────────────────────────────────────────────
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { makeCorsHeaders } from "../_shared/cors.ts";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 
 function json(body: unknown, status = 200): Response {
+  const CORS = makeCorsHeaders();
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json" },
   });
 }
 
@@ -158,6 +153,15 @@ async function buildCoupleSystemPrompt(
 
 const MAX_CONTENT_LENGTH = 2000;
 
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?previous\s+instructions/i,
+  /forget\s+(everything|all)\s+(above|previous)/i,
+  /you\s+are\s+now\s+(a\s+)?(?!partner)/i,
+  /\[system\]/i,
+  /\}\}\s*\{\{/,
+  /<\|.*?\|>/,
+];
+
 function validateContent(
   body: unknown,
 ):
@@ -176,6 +180,10 @@ function validateContent(
     return { ok: false, error: "Content must be 1-2000 characters" };
   }
 
+  if (INJECTION_PATTERNS.some((re) => re.test(content))) {
+    return { ok: false, error: "Message contains disallowed content." };
+  }
+
   const rawMode = (body as Record<string, unknown>).mode;
   const mode = typeof rawMode === "string" ? rawMode : null;
   return { ok: true, content, mode };
@@ -185,7 +193,7 @@ function validateContent(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: makeCorsHeaders() });
   }
 
   const correlationId = newCorrelationId();
@@ -197,6 +205,7 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const encKey = (Deno.env.get("MESSAGES_ENCRYPTION_KEY") ?? "").trim();
 
   // Resolve LLM provider. Fails closed (503) if key is missing.
   const resolved = tryGetProvider();
@@ -284,10 +293,18 @@ Deno.serve(async (req) => {
     couple_id: string | null;
   } | null;
 
-  const historyRows = (historyResult.data ?? []) as Array<{
+  const rawHistoryRows = (historyResult.data ?? []) as Array<{
     role: "user" | "assistant";
     content: string;
   }>;
+  const historyRows = encKey
+    ? await Promise.all(
+        rawHistoryRows.map(async (r) => ({
+          ...r,
+          content: await decrypt(r.content, encKey),
+        })),
+      )
+    : rawHistoryRows;
 
   // Build LLM context — couple or solo
   const isCouple = requestMode === "couple" && !!profile?.couple_id;
@@ -359,11 +376,19 @@ Deno.serve(async (req) => {
         coupleMemory,
       );
 
-      const coupleHistory = (coupleHistResult.data ?? []) as Array<{
+      const rawCoupleHistory = (coupleHistResult.data ?? []) as Array<{
         role: string;
         content: string;
         user_id: string;
       }>;
+      const coupleHistory = encKey
+        ? await Promise.all(
+            rawCoupleHistory.map(async (r) => ({
+              ...r,
+              content: await decrypt(r.content, encKey),
+            })),
+          )
+        : rawCoupleHistory;
       coupleHistoryRows = coupleHistory;
 
       // Role-label labeling: current user is "Partner A", other is "Partner B".
@@ -407,11 +432,12 @@ Deno.serve(async (req) => {
     ];
   }
 
-  // Save user message
+  // Save user message (encrypted if key is set)
+  const encContent = encKey ? await encrypt(content, encKey) : content;
   await supabase.from("messages").insert({
     user_id: userId,
     role: "user",
-    content,
+    content: encContent,
     conversation_type: conversationType,
   });
 
@@ -436,10 +462,11 @@ Deno.serve(async (req) => {
             encoder.encode(`data: ${JSON.stringify({ t: chunk })}\n\n`),
           );
         }
+        const encFullText = encKey ? await encrypt(fullText, encKey) : fullText;
         await supabase.from("messages").insert({
           user_id: userId,
           role: "assistant",
-          content: fullText,
+          content: encFullText,
           conversation_type: conversationType,
         });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -541,7 +568,7 @@ Deno.serve(async (req) => {
 
   return new Response(stream, {
     headers: {
-      ...CORS_HEADERS,
+      ...makeCorsHeaders(),
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
     },

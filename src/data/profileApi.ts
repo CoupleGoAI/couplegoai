@@ -1,5 +1,6 @@
 import { supabase } from '@data/supabase';
 import { runtimeConfig } from '@/config/runtimeConfig';
+import { invokeEdgeFunction } from '@data/apiClient';
 
 const SUPABASE_URL = runtimeConfig.supabaseUrl;
 const SUPABASE_ANON_KEY = runtimeConfig.supabaseAnonKey;
@@ -100,6 +101,16 @@ export async function uploadAvatar(
     return { ok: true, data: urlData.publicUrl };
   } catch {
     return { ok: false, error: 'Failed to upload photo. Please try again.' };
+  }
+}
+
+/** GDPR Article 20 — export all data for the authenticated user. */
+export async function exportData(): Promise<ProfileResult<string>> {
+  try {
+    const result = await invokeEdgeFunction<unknown>('data-export');
+    return { ok: true, data: JSON.stringify(result, null, 2) };
+  } catch {
+    return { ok: false, error: 'Failed to export data. Please try again.' };
   }
 }
 
