@@ -1,7 +1,7 @@
 -- GDPR Article 17 — Right to erasure.
 -- Called by account-delete edge function with service_role after JWT verification.
 
-CREATE OR REPLACE FUNCTION public.delete_user_data(target_user_id uuid)
+CREATE OR REPLACE FUNCTION public.delete_user_data(p_uid uuid)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -12,7 +12,7 @@ DECLARE
 BEGIN
   SELECT id INTO v_couple_id
     FROM public.couples
-    WHERE (partner1_id = target_user_id OR partner2_id = target_user_id)
+    WHERE (partner1_id = p_uid OR partner2_id = p_uid)
       AND is_active = true
     LIMIT 1;
 
@@ -21,14 +21,14 @@ BEGIN
     UPDATE public.profiles SET couple_id = NULL WHERE couple_id = v_couple_id;
   END IF;
 
-  DELETE FROM public.messages WHERE user_id = target_user_id;
-  DELETE FROM public.user_memory WHERE user_id = target_user_id;
-  DELETE FROM public.memory_corrections WHERE created_by = target_user_id;
-  DELETE FROM public.pairing_tokens WHERE creator_id = target_user_id;
-  DELETE FROM public.game_answers WHERE user_id = target_user_id;
-  DELETE FROM public.game_session_players WHERE user_id = target_user_id;
-  DELETE FROM public.profiles WHERE id = target_user_id;
-  DELETE FROM auth.users WHERE id = target_user_id;
+  DELETE FROM public.messages WHERE user_id = p_uid;
+  DELETE FROM public.user_memory WHERE user_id = p_uid;
+  DELETE FROM public.memory_corrections WHERE created_by = p_uid;
+  DELETE FROM public.pairing_tokens WHERE creator_id = p_uid;
+  DELETE FROM public.game_answers WHERE user_id = p_uid;
+  DELETE FROM public.game_session_players WHERE user_id = p_uid;
+  DELETE FROM public.profiles WHERE id = p_uid;
+  DELETE FROM auth.users WHERE id = p_uid;
 END;
 $$;
 

@@ -14,11 +14,28 @@ CREATE TABLE IF NOT EXISTS public.memory_corrections (
   applied_at timestamptz
 );
 
-CREATE INDEX idx_memory_corrections_pending
+DROP POLICY IF EXISTS "Users can read own corrections" ON public.memory_corrections;
+DROP POLICY IF EXISTS "Users can view own corrections" ON public.memory_corrections;
+DROP POLICY IF EXISTS "Users can insert own corrections" ON public.memory_corrections;
+
+ALTER TABLE public.memory_corrections
+  ALTER COLUMN owner_id TYPE text USING owner_id::text;
+
+ALTER TABLE public.memory_corrections
+  DROP CONSTRAINT IF EXISTS memory_corrections_target_kind_check;
+
+ALTER TABLE public.memory_corrections
+  DROP CONSTRAINT IF EXISTS memory_corrections_created_by_fkey;
+
+ALTER TABLE public.memory_corrections
+  ADD CONSTRAINT memory_corrections_created_by_fkey
+  FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_memory_corrections_pending
   ON public.memory_corrections (scope, owner_id)
   WHERE applied_at IS NULL;
 
-CREATE INDEX idx_memory_corrections_created_by
+CREATE INDEX IF NOT EXISTS idx_memory_corrections_created_by
   ON public.memory_corrections (created_by);
 
 ALTER TABLE public.memory_corrections ENABLE ROW LEVEL SECURITY;

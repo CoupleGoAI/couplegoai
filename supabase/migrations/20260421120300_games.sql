@@ -11,30 +11,6 @@
 -- rounds/answers/players, membership is derived via a join to
 -- game_sessions.
 
--- Helper: does the current auth.uid() belong to the couple that owns a
--- given session?  Kept as a SECURITY DEFINER function so it can be used
--- inside policies without triggering recursive RLS.
-create or replace function public._is_member_of_session_couple(p_session_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-    select exists (
-        select 1
-        from public.game_sessions gs
-        join public.couples c on c.id = gs.couple_id
-        where gs.id = p_session_id
-          and (c.partner1_id = auth.uid() or c.partner2_id = auth.uid())
-    );
-$$;
-
--- We reference this function inside policies; it must exist before the
--- policies are declared.  pg allows CREATE POLICY to reference a function
--- that does not yet exist at policy-creation time (resolved at query
--- time), but explicit ordering is safer.
-
 -- ─── game_invitations ────────────────────────────────────────────────────────
 
 create table if not exists public.game_invitations (
@@ -115,6 +91,25 @@ create policy "Couple members can read sessions"
             where partner1_id = auth.uid() or partner2_id = auth.uid()
         )
     );
+
+-- Helper: does the current auth.uid() belong to the couple that owns a
+-- given session? Kept as a SECURITY DEFINER function so it can be used
+-- inside policies without triggering recursive RLS.
+create or replace function public._is_member_of_session_couple(p_session_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select exists (
+        select 1
+        from public.game_sessions gs
+        join public.couples c on c.id = gs.couple_id
+        where gs.id = p_session_id
+          and (c.partner1_id = auth.uid() or c.partner2_id = auth.uid())
+    );
+$$;
 
 -- ─── game_session_players ────────────────────────────────────────────────────
 
