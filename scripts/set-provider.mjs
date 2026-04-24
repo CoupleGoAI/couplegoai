@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * set-provider.mjs — flips the AI_PROVIDER secret on the Supabase project
- * configured for the currently-loaded npm environment (see .env.local),
+ * configured for production environment (see .env),
  * then exits.
  *
  * Invoked by the `prod:claude` / `prod:groq` npm scripts BEFORE Expo starts,
@@ -15,8 +15,7 @@
  *     intended provider. The Expo client never knows which provider is
  *     active.
  *
- * Required env (loaded by the npm script via `cp .env.prod.<provider>
- * .env.local` before this runs):
+ * Required env (loaded from `.env` before this runs):
  *   SUPABASE_PROJECT_REF   — e.g. "abcd1234efgh"
  *   SUPABASE_ACCESS_TOKEN  — personal access token with secrets:write on
  *                            the project. NEVER commit this.
@@ -34,10 +33,10 @@ if (!provider || (provider !== "groq" && provider !== "claude")) {
   process.exit(2);
 }
 
-// Load .env.local (already copied into place by the npm script) so that
+// Load .env so that
 // SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN are available here without
 // requiring an extra dotenv dependency.
-const envPath = resolve(process.cwd(), ".env.local");
+const envPath = resolve(process.cwd(), ".env");
 if (existsSync(envPath)) {
   const content = readFileSync(envPath, "utf8");
   for (const rawLine of content.split(/\r?\n/)) {
@@ -62,7 +61,7 @@ const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 
 if (!projectRef || !accessToken) {
   console.error(
-    "[set-provider] missing SUPABASE_PROJECT_REF or SUPABASE_ACCESS_TOKEN in .env.local",
+    "[set-provider] missing SUPABASE_PROJECT_REF or SUPABASE_ACCESS_TOKEN in .env",
   );
   process.exit(1);
 }
