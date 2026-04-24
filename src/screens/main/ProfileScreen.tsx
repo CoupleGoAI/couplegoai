@@ -33,6 +33,7 @@ import {
     DateFieldRow,
     styles,
 } from '@screens/main/profile/ProfileFormComponents';
+import { useAuth } from '@hooks/useAuth';
 import { colors, gradients } from '@/theme/tokens';
 
 const MIN_AGE_YEARS = 13;
@@ -60,6 +61,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
     const insets = useSafeAreaInsets();
     const user = useAuthStore((s) => s.user);
     const { isSaving, isUploading, error, saveProfile, uploadAvatar } = useProfile();
+    const { signOut } = useAuth();
 
     const [name, setName] = useState(user?.name ?? '');
     const [birthDateValue, setBirthDateValue] = useState<Date | null>(parseDateStr(user?.birthDate));
@@ -225,15 +227,25 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                             disabled={isSaving}
                         />
 
-                        {hasCoupleId && (
+                        <View style={styles.secondaryRow}>
+                            {hasCoupleId && (
+                                <TouchableOpacity
+                                    style={[styles.disconnectBtn, styles.secondaryBtn]}
+                                    activeOpacity={0.8}
+                                    onPress={() => navigation.navigate('DisconnectConfirm')}
+                                >
+                                    <Text style={styles.disconnectLabel}>Disconnect from partner</Text>
+                                </TouchableOpacity>
+                            )}
+
                             <TouchableOpacity
-                                style={styles.disconnectBtn}
+                                style={[styles.logoutBtn, styles.secondaryBtn]}
                                 activeOpacity={0.8}
-                                onPress={() => navigation.navigate('DisconnectConfirm')}
+                                onPress={() => { void signOut(); }}
                             >
-                                <Text style={styles.disconnectLabel}>Disconnect from partner</Text>
+                                <Text style={styles.logoutLabel}>Log out</Text>
                             </TouchableOpacity>
-                        )}
+                        </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
