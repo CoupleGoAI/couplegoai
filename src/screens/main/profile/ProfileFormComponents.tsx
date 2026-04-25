@@ -324,6 +324,20 @@ export const styles = StyleSheet.create({
         color: colors.error,
     },
     actions: { marginTop: spacing['2xl'], gap: spacing.lg },
+    memoryBtn: {
+        alignSelf: 'center',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.radiusFull,
+        borderWidth: 1.5,
+        borderColor: colors.borderDefault,
+    },
+    memoryLabel: {
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.base,
+        fontWeight: fontWeight.semibold,
+        color: colors.foregroundMuted,
+    },
     secondaryRow: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -345,6 +359,20 @@ export const styles = StyleSheet.create({
         fontSize: fontSize.base,
         fontWeight: fontWeight.semibold,
         color: colors.error,
+    },
+    deleteBtn: {
+        alignSelf: 'center',
+        marginTop: spacing.sm,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.radiusFull,
+    },
+    deleteLabel: {
+        fontFamily: fontFamilies.sans,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.medium,
+        color: colors.gray,
+        textDecorationLine: 'underline',
     },
     logoutBtn: {
         alignSelf: 'center',

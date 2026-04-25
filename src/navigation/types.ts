@@ -30,7 +30,9 @@ export type RootStackParamList = {
     MainTabs: undefined;
     AiChat: undefined;
     Profile: undefined;
+    MemoryInsight: undefined;
     DisconnectConfirm: undefined;
+    AccountDelete: undefined;
     GameLobby: GameLobbyParams;
     GameSession: GameSessionParams;
     GameResults: GameResultsParams;
@@ -70,7 +72,9 @@ export type ConnectionConfirmedScreenProps = NativeStackScreenProps<RootStackPar
 
 // Profile & Disconnect screen props
 export type ProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+export type MemoryInsightScreenProps = NativeStackScreenProps<RootStackParamList, 'MemoryInsight'>;
 export type DisconnectConfirmScreenProps = NativeStackScreenProps<RootStackParamList, 'DisconnectConfirm'>;
+export type AccountDeleteScreenProps = NativeStackScreenProps<RootStackParamList, 'AccountDelete'>;
 
 // Tab screen props
 export type GamesScreenProps = BottomTabScreenProps<MainTabParamList, 'Play'>;

@@ -16,14 +16,9 @@ yarn-error.*
 # TypeScript
 *.tsbuildinfo
 
-# Local env
-.env
-.env.local
-.env.dev
-.env.prod
-.env.development.local
-.env.test.local
-.env.production.local
+# env
+.env*
+.env.*
 
 # EAS
 .eas/

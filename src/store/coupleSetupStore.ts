@@ -52,9 +52,6 @@ export const useCoupleSetupStore = create<CoupleSetupStore>((set) => ({
     addMessage: (msg) =>
         set((state) => {
             if (state.messages.some((m) => m.id === msg.id)) {
-                // #region agent log
-                fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H2',location:'src/store/coupleSetupStore.ts:addMessage',message:'Message skipped by id dedupe',data:{id:msg.id,role:msg.role,contentPreview:msg.content.slice(0,48)},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 return state;
             }
 
@@ -70,9 +67,6 @@ export const useCoupleSetupStore = create<CoupleSetupStore>((set) => ({
                         Math.abs(m.createdAt - msg.createdAt) <= DUPLICATE_WINDOW_MS,
                 );
                 if (hasNearDuplicateAssistant) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7822/ingest/856c1b22-f799-47d0-a7a4-5c2c4da5092a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46fd3f'},body:JSON.stringify({sessionId:'46fd3f',runId:'pre-fix',hypothesisId:'H2',location:'src/store/coupleSetupStore.ts:addMessage',message:'Assistant skipped by content/time dedupe',data:{id:msg.id,contentPreview:msg.content.slice(0,48),createdAt:msg.createdAt},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     return state;
                 }
             }

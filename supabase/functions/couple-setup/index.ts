@@ -4,19 +4,15 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { makeCorsHeaders } from "../_shared/cors.ts";
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-        "authorization, x-client-info, apikey, content-type",
-};
 
 function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
         status,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        headers: { ...makeCorsHeaders(), "Content-Type": "application/json" },
     });
 }
 
@@ -30,12 +26,61 @@ function errorResponse(error: string, status = 500, details?: unknown): Response
     );
 }
 
+// Fields that must never leave the edge function in logs — these all contain
+// user-typed content or raw model outputs. Scrubbed regardless of call site.
+const LOG_FIELD_DENYLIST = new Set([
+    "message",
+    "content",
+    "reply",
+    "hint",
+    "dating_start_date",
+    "help_focus",
+    "email",
+    "name",
+    "birth_date",
+    "authHeader",
+    "authorization",
+    "token",
+    "jwt",
+]);
+
+function sanitizeExtra(extra?: Record<string, unknown>): Record<string, unknown> | undefined {
+    if (!extra) return undefined;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(extra)) {
+        if (LOG_FIELD_DENYLIST.has(k)) {
+            out[k] = "[redacted]";
+            continue;
+        }
+        // Nested error-like objects: keep only machine-readable fields.
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+            const obj = v as Record<string, unknown>;
+            if (typeof obj.code === "string" || typeof obj.message === "string") {
+                out[k] = { code: obj.code };
+                continue;
+            }
+        }
+        out[k] = v;
+    }
+    return out;
+}
+
+function errorCode(error: unknown): string | undefined {
+    if (!error) return undefined;
+    if (typeof error === "string") return undefined; // may be raw body — drop
+    if (typeof error === "object") {
+        const obj = error as Record<string, unknown>;
+        if (typeof obj.code === "string") return obj.code;
+    }
+    return undefined;
+}
+
 function logError(label: string, error: unknown, extra?: Record<string, unknown>) {
     console.error(
         JSON.stringify({
             label,
-            error,
-            extra,
+            code: errorCode(error),
+            extra: sanitizeExtra(extra),
             ts: new Date().toISOString(),
         }),
     );
@@ -216,7 +261,7 @@ async function insertAssistantResumeIfNeeded(
 
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: CORS_HEADERS });
+        return new Response("ok", { headers: makeCorsHeaders() });
     }
 
     try {

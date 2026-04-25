@@ -8,6 +8,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
+    Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import GradientButton from '@components/ui/GradientButton';
 import { useProfile } from '@hooks/useProfile';
 import { useAuthStore } from '@store/authStore';
+import { exportData } from '@data/profileApi';
 import type { ProfileScreenProps } from '@navigation/types';
 import { HelpFocusChips } from '@screens/main/profile/HelpFocusChips';
 import {
@@ -117,16 +119,28 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
 
     const handleSave = useCallback(async (): Promise<void> => {
         const nameErr = validateName(name);
-        if (nameErr) { setValidationError(nameErr); return; }
+        if (nameErr) {
+            setValidationError(nameErr);
+            return;
+        }
 
         const birthErr = validateBirthDate(birthDateStr);
-        if (birthErr) { setValidationError(birthErr); return; }
+        if (birthErr) {
+            setValidationError(birthErr);
+            return;
+        }
 
         const datingErr = validateDatingStartDate(datingDateStr);
-        if (datingErr) { setValidationError(datingErr); return; }
+        if (datingErr) {
+            setValidationError(datingErr);
+            return;
+        }
 
         const crossErr = validateDatingAfterBirth(datingDateStr, birthDateStr);
-        if (crossErr) { setValidationError(crossErr); return; }
+        if (crossErr) {
+            setValidationError(crossErr);
+            return;
+        }
 
         setValidationError(null);
 
@@ -139,6 +153,19 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
 
         if (success) navigation.goBack();
     }, [name, birthDateStr, helpFocus, datingDateStr, saveProfile, navigation]);
+
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExport = useCallback(async (): Promise<void> => {
+        setIsExporting(true);
+        try {
+            const result = await exportData();
+            if (!result.ok) return;
+            await Share.share({ message: result.data, title: 'Your CoupleGoAI data' });
+        } finally {
+            setIsExporting(false);
+        }
+    }, []);
 
     const displayError = validationError ?? error;
     const hasCoupleId = user?.coupleId != null;
@@ -166,7 +193,9 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                         avatarUrl={user?.avatarUrl ?? null}
                         isUploading={isUploading}
                         animStyle={avatarAnimStyle}
-                        onPress={() => { void handleAvatarPress(); }}
+                        onPress={() => {
+                            void handleAvatarPress();
+                        }}
                     />
 
                     <FormSection delay={0} label="Name">
@@ -213,19 +242,27 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                         </FormSection>
                     )}
 
-                    {displayError != null && (
-                        <ErrorBanner message={displayError} />
-                    )}
+                    {displayError != null && <ErrorBanner message={displayError} />}
 
                     <View style={styles.actions}>
                         <GradientButton
                             label="Save changes"
-                            onPress={() => { void handleSave(); }}
+                            onPress={() => {
+                                void handleSave();
+                            }}
                             size="lg"
                             fullWidth
                             loading={isSaving}
                             disabled={isSaving}
                         />
+
+                        <TouchableOpacity
+                            style={styles.memoryBtn}
+                            activeOpacity={0.8}
+                            onPress={() => navigation.navigate('MemoryInsight')}
+                        >
+                            <Text style={styles.memoryLabel}>What does the AI know about me?</Text>
+                        </TouchableOpacity>
 
                         <View style={styles.secondaryRow}>
                             {hasCoupleId && (
@@ -237,15 +274,37 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps): React
                                     <Text style={styles.disconnectLabel}>Disconnect from partner</Text>
                                 </TouchableOpacity>
                             )}
-
                             <TouchableOpacity
                                 style={[styles.logoutBtn, styles.secondaryBtn]}
                                 activeOpacity={0.8}
-                                onPress={() => { void signOut(); }}
+                                onPress={() => {
+                                    void signOut();
+                                }}
                             >
                                 <Text style={styles.logoutLabel}>Log out</Text>
                             </TouchableOpacity>
                         </View>
+
+                        <TouchableOpacity
+                            style={styles.memoryBtn}
+                            activeOpacity={0.8}
+                            disabled={isExporting}
+                            onPress={() => {
+                                void handleExport();
+                            }}
+                        >
+                            <Text style={styles.memoryLabel}>
+                                {isExporting ? 'Preparing export…' : 'Download my data'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.deleteBtn}
+                            activeOpacity={0.8}
+                            onPress={() => navigation.navigate('AccountDelete')}
+                        >
+                            <Text style={styles.deleteLabel}>Delete account</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
