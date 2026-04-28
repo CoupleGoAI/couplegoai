@@ -1,4 +1,4 @@
-name: Android Release
+name: CI/CD Pipeline
 
 on:
   push:
@@ -15,7 +15,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test-node:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+    - run: npm ci
+    - run: npm test
+
+  test-sql:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: supabase/setup-cli@v1
+    - run: supabase start
+    - run: supabase db test
+
+  deploy-supabase:
+    needs: [test-node, test-sql]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: supabase/setup-cli@v1
+    - run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    - run: supabase db push
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    - run: supabase functions deploy --all
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+    - run: npm ci
+    - run: node scripts/upload-prompts.js
+      env:
+        SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
   release:
+    needs: [deploy-supabase]
     runs-on: ubuntu-latest
     env:
       JAVA_VERSION: '17'
