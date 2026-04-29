@@ -16,10 +16,13 @@
     "prod:claude": "node scripts/use-env.mjs .env && node scripts/set-provider.mjs claude && expo start",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "help": "node scripts/help.mjs",
     "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit",
     "test": "jest",
-    "release:android:prepare": "node scripts/prepare-android-release.mjs"
+    "release:android:prepare": "node scripts/prepare-android-release.mjs",
+    "release:android:build": "sh scripts/build-android-release.sh",
+    "release:android:local": "sh scripts/release-android-local.sh"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
