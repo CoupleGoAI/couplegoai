@@ -31,4 +31,7 @@ prompt.log
 
 # App runtime logs
 logs/
+
+# platform builds
 ios/
+android/
