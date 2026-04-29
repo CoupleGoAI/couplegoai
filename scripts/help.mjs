@@ -26,6 +26,8 @@ const sections = [
       ['npm test',                 'Jest'],
       ['npm run release:android:build', 'Build signed Android release APK'],
       ['npm run release:android:local', 'Build signed Android release APK and install to USB device'],
+      ['npm run ios:release:debug', 'Build local iOS Release config on connected device without clean prebuild'],
+      ['npm run release:ios:native', 'Clean prebuild and install local native iOS Release on connected device'],
     ],
   },
   {
