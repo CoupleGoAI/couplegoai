@@ -87,6 +87,28 @@ require_command() {
   fi
 }
 
+resolve_device_id() {
+  REQUESTED_DEVICE="$1"
+
+  xcodebuild -workspace "$IOS_DIR/CoupleGoAI.xcworkspace" -scheme CoupleGoAI -showdestinations 2>/dev/null \
+    | awk -v requested="$REQUESTED_DEVICE" '
+      /platform:iOS,/ && /arch:arm64/ && $0 !~ /Simulator/ && $0 !~ /placeholder/ {
+        id = $0
+        sub(/^.*id:/, "", id)
+        sub(/,.*/, "", id)
+
+        name = $0
+        sub(/^.*name:/, "", name)
+        sub(/ }.*/, "", name)
+
+        if (requested == "" || requested == id || requested == name || index(name, requested) > 0) {
+          print id
+          exit
+        }
+      }
+    '
+}
+
 cd "$REPO_ROOT"
 
 load_env_file "$REPO_ROOT/.env"
@@ -124,21 +146,20 @@ if [ -z "$DEVELOPMENT_TEAM" ]; then
   exit 1
 fi
 
-if [ -z "$DEVICE_ID" ]; then
-  DEVICE_ID="$(xcrun devicectl list devices 2>/dev/null | awk '$0 ~ /iPhone/ && ($0 ~ /connected/ || $0 ~ /available/) { print $3; exit }')"
-fi
+DEVICE_ID="$(resolve_device_id "$DEVICE_ID")"
 
 if [ -z "$DEVICE_ID" ]; then
   echo "No paired iPhone found. Connect and trust your iPhone, or pass --device <id>." >&2
+  xcodebuild -workspace "$IOS_DIR/CoupleGoAI.xcworkspace" -scheme CoupleGoAI -showdestinations >&2
   exit 1
 fi
 
-echo "> xcodebuild -workspace ios/CoupleGoAI.xcworkspace -scheme CoupleGoAI -configuration Release -destination generic/platform=iOS -derivedDataPath ios/build build"
+echo "> xcodebuild -workspace ios/CoupleGoAI.xcworkspace -scheme CoupleGoAI -configuration Release -destination id=$DEVICE_ID -derivedDataPath ios/build build"
 xcodebuild \
   -workspace "$IOS_DIR/CoupleGoAI.xcworkspace" \
   -scheme CoupleGoAI \
   -configuration Release \
-  -destination generic/platform=iOS \
+  -destination "id=$DEVICE_ID" \
   -derivedDataPath "$IOS_DIR/build" \
   -allowProvisioningUpdates \
   -allowProvisioningDeviceRegistration \
