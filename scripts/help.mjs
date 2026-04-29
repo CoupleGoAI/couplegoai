@@ -24,6 +24,8 @@ const sections = [
       ['npm run lint',             'ESLint'],
       ['npm run type-check',       'tsc --noEmit'],
       ['npm test',                 'Jest'],
+      ['npm run release:android:build', 'Build signed Android release APK'],
+      ['npm run release:android:local', 'Build signed Android release APK and install to USB device'],
     ],
   },
   {
