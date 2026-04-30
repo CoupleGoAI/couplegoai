@@ -26,8 +26,8 @@ const sections = [
       ['npm test',                 'Jest'],
       ['npm run release:android:build', 'Build signed Android release APK'],
       ['npm run release:android:local', 'Build signed Android release APK and install to USB device'],
-      ['npm run ios:release:debug', 'Build local iOS Release config on connected device without clean prebuild'],
-      ['npm run release:ios:native', 'Clean prebuild and install local native iOS Release on connected device'],
+      ['npm run ios:release:debug -- --team-id TEAM_ID', 'Build local iOS Release config on connected iPhone without clean prebuild'],
+      ['npm run release:ios:native -- --team-id TEAM_ID', 'Clean prebuild and install local native iOS Release on connected iPhone'],
     ],
   },
   {
@@ -41,6 +41,7 @@ const sections = [
     title: 'Env helpers',
     rows: [
       ['npm run env:use:prod',    'Copy .env → .env.local (used by prod scripts)'],
+      ['export APPLE_TEAM_ID=TEAM_ID', 'Optional default for local iOS release signing'],
     ],
   },
 ];
