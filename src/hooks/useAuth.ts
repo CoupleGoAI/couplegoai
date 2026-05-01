@@ -69,6 +69,7 @@ export function useAuth(): {
                 helpFocus: null,
                 datingStartDate: null,
                 onboardingCompleted: false,
+                quizCompleted: false,
                 coupleSetupCompleted: false,
                 coupleId: null,
                 createdAt: new Date().toISOString(),

@@ -23,6 +23,7 @@ export type MainTabParamList = {
 export type RootStackParamList = {
     Auth: undefined;
     OnboardingProfile: undefined;
+    RelationshipQuiz: undefined;
     GenerateQR: undefined;
     ScanQR: undefined;
     ConnectionConfirmed: { partnerName: string | null; coupleId: string };
@@ -58,6 +59,7 @@ export type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, 'Re
 
 // Onboarding screen props
 export type OnboardingProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'OnboardingProfile'>;
+export type RelationshipQuizScreenProps = NativeStackScreenProps<RootStackParamList, 'RelationshipQuiz'>;
 
 // Couple setup screen props
 export type CoupleSetupScreenProps = NativeStackScreenProps<RootStackParamList, 'CoupleSetup'>;

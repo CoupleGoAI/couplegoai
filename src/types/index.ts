@@ -14,6 +14,7 @@ export interface AuthUser {
     helpFocus: string | null;
     datingStartDate: string | null;
     onboardingCompleted: boolean;
+    quizCompleted: boolean;
     coupleSetupCompleted: boolean;
     coupleId: string | null;
     createdAt: string;

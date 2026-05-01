@@ -139,11 +139,44 @@ function formatIndividualMemoryBlocks(
   return lines.join("\n");
 }
 
+interface QuizProfileRow {
+  love_style: string;
+  conflict_style: string;
+  safety_style: string;
+}
+
+const LOVE_LABEL: Record<string, string> = {
+  words_reassurance: "Words & Reassurance", time_presence: "Time & Presence",
+  action_support: "Action & Support", touch_affection: "Touch & Affection",
+  thoughtful_gestures: "Thoughtful Gestures",
+};
+const CONFLICT_LABEL: Record<string, string> = {
+  direct_pursuer: "Direct Pursuer", peacekeeper_avoider: "Peacekeeper",
+  reactive_defender: "Reactive Defender", collaborative_repairer: "Collaborative Repairer",
+};
+const SAFETY_LABEL: Record<string, string> = {
+  secure: "Secure", reassurance_seeking: "Reassurance-Seeking",
+  guarded_self_protective: "Guarded", mixed_push_pull: "Mixed",
+};
+
+function formatQuizProfile(quiz: QuizProfileRow | null, label = "Partner A"): string {
+  if (!quiz) return "";
+  return [
+    "",
+    `RELATIONSHIP PROFILE (${label} — self-reported)`,
+    `Love style: ${LOVE_LABEL[quiz.love_style] ?? quiz.love_style}`,
+    `Conflict style: ${CONFLICT_LABEL[quiz.conflict_style] ?? quiz.conflict_style}`,
+    `Emotional safety: ${SAFETY_LABEL[quiz.safety_style] ?? quiz.safety_style}`,
+    "Use these patterns to personalize tone and suggestions. Never name these labels explicitly to the user.",
+  ].join("\n");
+}
+
 interface SoloPromptInput {
   coupled: boolean;
   datingStartDate: string | null;
   helpFocus: string | null;
   memory: UserMemoryRow | null;
+  quizProfile: QuizProfileRow | null;
 }
 
 async function buildSystemPrompt(
@@ -163,6 +196,7 @@ async function buildSystemPrompt(
     FOCUS: input.helpFocus ?? "general relationship support",
     TODAY_DATE: new Date().toISOString().slice(0, 10),
     USER_MEMORY: formatMemoryBlock(input.memory),
+    QUIZ_PROFILE: formatQuizProfile(input.quizProfile),
   });
 }
 
@@ -174,12 +208,17 @@ async function buildCoupleSystemPrompt(
   coupleMemory: CoupleMemoryRow | null,
   memoryA: UserMemoryRow | null,
   memoryB: UserMemoryRow | null,
+  quizA: QuizProfileRow | null,
+  quizB: QuizProfileRow | null,
 ): Promise<string> {
   const template = await fetchPromptTemplate(
     supabaseUrl,
     serviceKey,
     "chat_couple.txt",
   );
+  const quizContext = [formatQuizProfile(quizA, "Partner A"), formatQuizProfile(quizB, "Partner B")]
+    .filter(Boolean)
+    .join("\n");
   return interpolate(template, {
     RELATIONSHIP_STATUS: datingStartDate
       ? `together since ${datingStartDate}`
@@ -188,6 +227,7 @@ async function buildCoupleSystemPrompt(
     TODAY_DATE: new Date().toISOString().slice(0, 10),
     COUPLE_MEMORY: formatCoupleMemoryBlock(coupleMemory),
     INDIVIDUAL_CONTEXT: formatIndividualMemoryBlocks(memoryA, memoryB),
+    QUIZ_PROFILES: quizContext,
   });
 }
 
@@ -306,7 +346,7 @@ Deno.serve(async (req) => {
   // Fetch profile, history, and user memory in parallel.
   // NOTE: `name` is pulled only for the redactor's name allowlist in the
   // background couple-memory pipeline; it never reaches the LLM.
-  const [profileResult, historyResult, memoryResult] = await Promise.all([
+  const [profileResult, historyResult, memoryResult, quizResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("name, help_focus, dating_start_date, couple_id")
@@ -324,9 +364,15 @@ Deno.serve(async (req) => {
       .select("summary, traits, message_count")
       .eq("user_id", userId)
       .maybeSingle(),
+    supabase
+      .from("profile_quiz_results")
+      .select("love_style, conflict_style, safety_style")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   const memory = (memoryResult.data ?? null) as UserMemoryRow | null;
+  const quizProfile = (quizResult.data ?? null) as QuizProfileRow | null;
 
   const profile = profileResult.data as {
     name: string | null;
@@ -382,6 +428,7 @@ Deno.serve(async (req) => {
         coupleHistResult,
         coupleMemoryResult,
         partnerMemoryResult,
+        partnerQuizResult,
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -405,12 +452,18 @@ Deno.serve(async (req) => {
           .select("summary, traits, message_count")
           .eq("user_id", partnerId)
           .maybeSingle(),
+        supabase
+          .from("profile_quiz_results")
+          .select("love_style, conflict_style, safety_style")
+          .eq("user_id", partnerId)
+          .maybeSingle(),
       ]);
 
       conversationType = "couple_chat";
       activeCoupleId = coupleId;
       coupleMemory = (coupleMemoryResult.data ?? null) as CoupleMemoryRow | null;
       const partnerMemory = (partnerMemoryResult.data ?? null) as UserMemoryRow | null;
+      const partnerQuiz = (partnerQuizResult.data ?? null) as QuizProfileRow | null;
       coupleNameA = profile?.name ?? "";
       const partnerProfile = partnerProfileResult.data as {
         name: string | null;
@@ -428,6 +481,8 @@ Deno.serve(async (req) => {
         coupleMemory,
         memory,
         partnerMemory,
+        quizProfile,
+        partnerQuiz,
       );
 
       const rawCoupleHistory = (coupleHistResult.data ?? []) as Array<{
@@ -473,6 +528,7 @@ Deno.serve(async (req) => {
         datingStartDate: profile?.dating_start_date ?? null,
         helpFocus: profile?.help_focus ?? null,
         memory,
+        quizProfile,
       },
     );
 

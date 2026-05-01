@@ -9,6 +9,7 @@ import { useAuth } from '@hooks/useAuth';
 import SplashScreen from '@screens/auth/SplashScreen';
 import AuthNavigator from '@navigation/AuthNavigator';
 import { OnboardingProfileScreen } from '@screens/main/OnboardingProfileScreen';
+import { RelationshipQuizScreen } from '@screens/main/RelationshipQuizScreen';
 import { GenerateQRScreen } from '@screens/main/GenerateQRScreen';
 import { ScanQRScreen } from '@screens/main/ScanQRScreen';
 import { ConnectionConfirmedScreen } from '@screens/main/ConnectionConfirmedScreen';
@@ -30,6 +31,7 @@ export default function RootNavigator() {
     const isInitialized = useAuthStore((s) => s.isInitialized);
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     const onboardingCompleted = useAuthStore((s) => s.user?.onboardingCompleted ?? false);
+    const quizCompleted = useAuthStore((s) => s.user?.quizCompleted ?? false);
     const coupleId = useAuthStore((s) => s.user?.coupleId ?? null);
     const coupleSetupCompleted = useAuthStore((s) => s.user?.coupleSetupCompleted ?? false);
     const pairingSkipped = useAuthStore((s) => s.pairingSkipped);
@@ -56,6 +58,8 @@ export default function RootNavigator() {
                     <Stack.Screen name="Auth" component={AuthNavigator} />
                 ) : !onboardingCompleted ? (
                     <Stack.Screen name="OnboardingProfile" component={OnboardingProfileScreen} />
+                ) : !quizCompleted ? (
+                    <Stack.Screen name="RelationshipQuiz" component={RelationshipQuizScreen} />
                 ) : coupleId === null && !pairingSkipped ? (
                     shouldStartPairingOnScan ? (
                         <>
